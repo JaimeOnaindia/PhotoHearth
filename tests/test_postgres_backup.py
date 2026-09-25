@@ -2,6 +2,7 @@ import io
 import sqlite3
 import subprocess
 import tarfile
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -29,6 +30,29 @@ def test_owner_only_import_is_non_destructive(db_settings, tmp_path):
     with pytest.raises(ValueError, match="no está vacío"):
         import_owner(db_settings, source)
     assert source.read_bytes() == original
+
+
+def test_owner_import_reads_wal_snapshot_without_creating_sidecars(db_settings, tmp_path):
+    if not db_settings.database_url:
+        pytest.skip("PostgreSQL-specific migration")
+    live = sqlite3.connect(tmp_path / "live.sqlite3")
+    source = tmp_path / "snapshot.sqlite3"
+    try:
+        live.execute("PRAGMA journal_mode=WAL")
+        live.execute("CREATE TABLE users (id INTEGER, name TEXT, password_hash TEXT)")
+        live.execute("INSERT INTO users VALUES (1, 'Jaime', 'test-hash')")
+        live.commit()
+        target = sqlite3.connect(source)
+        live.backup(target)
+        target.close()
+    finally:
+        live.close()
+    original = source.read_bytes()
+    assert original[18:20] == b"\x02\x02"  # WAL-mode database header.
+    import_owner(db_settings, source)
+    assert source.read_bytes() == original
+    assert not Path(f"{source}-wal").exists()
+    assert not Path(f"{source}-shm").exists()
 
 
 def test_postgres_backup_restores_files_and_database(db_settings, tmp_path):

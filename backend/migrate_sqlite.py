@@ -15,7 +15,11 @@ def import_owner(settings: Settings, source: Path) -> None:
     if engine_for(settings).dialect.name != "postgresql":
         raise ValueError("El destino debe ser PostgreSQL.")
     source = source.resolve(strict=True)
-    connection = sqlite3.connect(f"{source.as_uri()}?mode=ro", uri=True)
+    if Path(f"{source}-wal").exists():
+        raise ValueError("Usa el SQLite de un backup verificado, no una biblioteca activa.")
+    # A completed backup can retain its WAL header without any sidecar files.
+    # immutable avoids trying to create WAL/SHM files on the read-only mount.
+    connection = sqlite3.connect(f"{source.as_uri()}?mode=ro&immutable=1", uri=True)
     try:
         row = connection.execute("SELECT name, password_hash FROM users WHERE id=1").fetchone()
     finally:
