@@ -1,7 +1,8 @@
 # PhotoHearth
 
 Biblioteca fotográfica privada para un servidor doméstico. Web responsive con
-React y TypeScript; API FastAPI; SQLAlchemy 2 y migraciones Alembic sobre SQLite.
+React y TypeScript; API FastAPI; SQLAlchemy 2 y migraciones Alembic sobre PostgreSQL.
+SQLite sigue disponible para desarrollo local.
 Los originales permanecen en el disco propio y se sirven solo con autenticación.
 
 ## Estado de la versión inicial
@@ -9,10 +10,13 @@ Los originales permanecen en el disco propio y se sirven solo con autenticación
 Cuenta propietaria con contraseña, subida JPEG/PNG/WebP/HEIC, originales intactos,
 deduplicación, fecha EXIF, miniaturas, timeline, álbumes, favoritos, búsqueda por
 nombre/fecha y papelera recuperable. Exportación de seguridad con prueba de
-restauración. No hay borrado definitivo ni limpieza automática de la papelera.
+restauración. Subidas con dos trabajadores, cambio de contraseña y mapa de lugares
+con GPS EXIF o coordenadas editadas manualmente. El mapa externo requiere activación
+explícita; las fotos nunca se envían al proveedor. No hay borrado definitivo ni
+limpieza automática de la papelera.
 
 Pendientes: multiusuario, filtro por cámara y copias externas programadas.
-Las apps nativas y su subida automática se aplazaron. Mapa GPS, compartir,
+Las apps nativas y su subida automática se aplazaron. Compartir,
 búsqueda semántica y reconocimiento facial son fases futuras, no funciones
 disponibles. No se incluye soporte de vídeo en esta versión.
 
@@ -42,4 +46,5 @@ npm test
 ```
 
 Las pruebas de navegador levantan su propia biblioteca temporal; no usan tus
-fotos. Guías: [servidor y backups](deploy/DEBIAN.md), [Jenkins](deploy/JENKINS.md).
+fotos. Guías: [servidor y backups](deploy/DEBIAN.md), [PostgreSQL y migración](deploy/POSTGRES.md),
+[Jenkins](deploy/JENKINS.md).

@@ -21,6 +21,13 @@ y prueba los flujos de navegador en escritorio y móvil. Publica resultados
 JUnit y un tar del código identificado por commit. Conserva diez ejecuciones
 y los artefactos de las tres últimas. Un fallo impide generar el artefacto.
 
+La suite de API y migraciones se ejecuta contra SQLite y PostgreSQL 17. El servicio
+`ci-db` es temporal y aislado, sin puertos publicados ni datos de producción.
+El agente incluye el cliente PostgreSQL 17 para probar exportación y restauración.
+Antes de publicar este Jenkinsfile en una instalación antigua, reconstruir
+`ci-agent` y arrancar `ci-db` con ambos archivos Compose. Su contraseña fija es
+exclusivamente de pruebas; producción utiliza un secreto diferente.
+
 El artefacto es código listo para construir, no una imagen Docker ya publicada.
 La producción se actualiza manualmente tras hacer una copia de seguridad.
 No permitir a colaboradores no confiables modificar el Jenkinsfile: los

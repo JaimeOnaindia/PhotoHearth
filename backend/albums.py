@@ -3,7 +3,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import and_, delete, func, select
-from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.auth import session
 from backend.db import connect
@@ -72,6 +73,7 @@ def add_photo(album_id: str, photo_id: str, request: Request):
         photo = db.get(Photo, photo_id)
         if not photo or photo.deleted_at is not None:
             raise HTTPException(404, "No encontramos esta foto en la biblioteca.")
+        insert = pg_insert if db.bind.dialect.name == "postgresql" else sqlite_insert
         db.execute(
             insert(AlbumPhoto).values(album_id=album_id, photo_id=photo_id).on_conflict_do_nothing()
         )

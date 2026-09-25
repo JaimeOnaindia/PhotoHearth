@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, func, select
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from backend import albums, auth, photos
+from backend import albums, auth, photos, places
 from backend.config import Settings
 from backend.db import connect, initialize
 from backend.models import Album, Photo
@@ -21,7 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         initialize(settings)
-        app.state.upload_lock = asyncio.Semaphore(1)
+        app.state.upload_lock = asyncio.Semaphore(settings.upload_concurrency)
         yield
 
     app = FastAPI(title="PhotoHearth", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -47,7 +47,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; "
+            "default-src 'self'; img-src 'self' blob: data: https://tile.openstreetmap.org; "
+            "style-src 'self' 'unsafe-inline'; "
             "script-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; "
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
@@ -60,6 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(photos.router)
     app.include_router(albums.router)
+    app.include_router(places.router)
 
     @app.get("/api/health")
     def health():

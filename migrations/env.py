@@ -20,7 +20,7 @@ def migrate(connection):
 
 if context.is_offline_mode():
     context.configure(
-        url="sqlite:///library.sqlite3",
+        url=engine_for(Settings()).url,
         target_metadata=Base.metadata,
         literal_binds=True,
         render_as_batch=True,

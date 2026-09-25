@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
-from backend.db import connect
+from backend.db import connect, lock_auth
 from backend.models import LoginAttempt, LoginSession, User
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -41,13 +41,12 @@ class Login(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-@router.post("/login")
-def login(body: Login, request: Request, response: Response):
+def password_attempt(request: Request) -> User | None:
     settings = request.app.state.settings
     address = request.client.host if request.client else "unknown"
     now = int(time.time())
     with connect(settings) as db:
-        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        lock_auth(db)
         db.execute(delete(LoginAttempt).where(LoginAttempt.attempted < now - 60))
         attempts = db.scalar(
             select(func.count())
@@ -62,6 +61,13 @@ def login(body: Login, request: Request, response: Response):
             )
         db.add(LoginAttempt(address=address, attempted=now))
         owner = db.get(User, 1)
+    return owner
+
+
+@router.post("/login")
+def login(body: Login, request: Request, response: Response):
+    settings = request.app.state.settings
+    owner = password_attempt(request)
     try:
         hasher.verify(owner.password_hash if owner else DUMMY_HASH, body.password)
         valid = owner is not None
@@ -70,7 +76,12 @@ def login(body: Login, request: Request, response: Response):
     if not valid:
         raise HTTPException(401, "La contraseña no es correcta.")
     token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
+    now = int(time.time())
     with connect(settings) as db:
+        lock_auth(db)
+        current_owner = db.get(User, 1)
+        if not current_owner or current_owner.password_hash != owner.password_hash:
+            raise HTTPException(401, "La contraseña ha cambiado. Vuelve a iniciar sesión.")
         db.execute(delete(LoginSession).where(LoginSession.expires <= now))
         db.add(
             LoginSession(
@@ -87,6 +98,40 @@ def login(body: Login, request: Request, response: Response):
         path="/",
     )
     return {"name": owner.name, "csrf": csrf}
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
+@router.post("/password", dependencies=[Depends(session)])
+def change_password(body: PasswordChange, request: Request, response: Response):
+    owner = password_attempt(request)
+    try:
+        hasher.verify(owner.password_hash if owner else DUMMY_HASH, body.current_password)
+    except (VerificationError, InvalidHashError) as error:
+        raise HTTPException(400, "La contraseña actual no es correcta.") from error
+    if not owner:
+        raise HTTPException(401, "Conecta con tu cuenta para continuar.")
+    encoded = hasher.hash(body.new_password)
+    with connect(request.app.state.settings) as db:
+        lock_auth(db)
+        current_owner = db.get(User, 1)
+        current_session = db.get(LoginSession, digest(request.cookies.get(COOKIE, "")))
+        if (
+            not current_owner
+            or current_owner.password_hash != owner.password_hash
+            or not current_session
+            or current_session.expires <= int(time.time())
+        ):
+            raise HTTPException(401, "La sesión ha cambiado. Vuelve a iniciar sesión.")
+        current_owner.password_hash = encoded
+        db.execute(delete(LoginSession))
+    response.delete_cookie(
+        COOKIE, secure=request.app.state.settings.secure_cookie, samesite="strict"
+    )
+    return {"ok": True}
 
 
 @router.get("/me")

@@ -67,7 +67,7 @@
   .sidebar { top: auto; right: 0; width: 100%; height: auto; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: #f6f6eff5; backdrop-filter: blur(15px); border: 0; border-top: 1px solid var(--line); }
   .sidebar > .brand, .sidebar-section-label, .sidebar-lower { display: none; }
   .sidebar nav { flex-direction: row; gap: 0; justify-content: space-around; }
-  .nav-item { flex-direction: column; justify-content: center; width: 20%; padding: 8px 1px; gap: 5px; font-size: 9px; min-height: 52px; }
+  .nav-item { flex-direction: column; justify-content: center; width: 16.666%; padding: 8px 1px; gap: 5px; font-size: 9px; min-height: 52px; }
   .nav-item:nth-last-child(2) { margin-top: 0; } .nav-item small { display: none; }
   .topbar { height: 68px; padding: 0 20px; } .mobile-brand { display: block; } .breadcrumb { margin-right: auto; margin-left: 12px; font-size: 10px; }
   .breadcrumb span { margin: 0 7px; } .local-label { display: none; } .topbar-right { gap: 8px; }

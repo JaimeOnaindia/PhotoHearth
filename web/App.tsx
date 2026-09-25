@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Check, FolderHeart, Grid2X2, HardDrive, Heart, Images, LayoutGrid, LogOut, Plus, RotateCcw, Search, Settings2, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
-import { api, bytes, errorMessage, type Photo, type User, type View } from './api';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowUpRight, Check, FolderHeart, Grid2X2, HardDrive, Heart, Images, LayoutGrid, LogOut, MapPin, Plus, RotateCcw, Search, Settings2, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { api, bytes, errorMessage, type Photo, type PhotoPatch, type User, type View } from './api';
 import { Albums, AlbumModal } from './Albums';
 import { Gallery } from './Gallery';
 import { Lightbox } from './Lightbox';
@@ -10,14 +10,17 @@ import { Brand, EmptyState } from './ui';
 import { useLibrary } from './useLibrary';
 import { useUpload } from './useUpload';
 
+const Places = lazy(() => import('./Places').then(module => ({ default: module.Places })));
+
 const nav = [
   { id: 'library', label: 'Todas las fotos', icon: Images },
   { id: 'favorites', label: 'Favoritos', icon: Heart },
   { id: 'albums', label: 'Álbumes', icon: FolderHeart },
+  { id: 'places', label: 'Lugares', icon: MapPin },
   { id: 'trash', label: 'Papelera', icon: Trash2 },
   { id: 'settings', label: 'Mi hogar', icon: Settings2 },
 ] as const;
-const titles: Record<View, string> = { library: 'Tu vida, en imágenes.', favorites: 'Las que más te importan.', albums: 'Historias que van juntas.', trash: 'Por si cambias de idea.', settings: 'Aquí viven tus recuerdos.' };
+const titles: Record<View, string> = { library: 'Tu vida, en imágenes.', favorites: 'Las que más te importan.', albums: 'Historias que van juntas.', trash: 'Por si cambias de idea.', settings: 'Aquí viven tus recuerdos.', places: 'Nuestro mundo, en recuerdos.' };
 
 export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>('library');
@@ -37,8 +40,8 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   const library = useLibrary(view, search, albumId, revision);
   const upload = useUpload(user.csrf, refresh);
   const album = library.albums.find(a => a.id === albumId);
-  const photoView = !['settings', 'albums'].includes(view) || albumId !== null;
-  const focusIndex = library.items.findIndex(p => p.id === focused?.id);
+  const photoView = !['settings', 'albums', 'places'].includes(view) || albumId !== null;
+  const focusIndex = view === 'places' ? -1 : library.items.findIndex(p => p.id === focused?.id);
 
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 250); return () => clearTimeout(timer); }, [query]);
   function navigate(next: View, id: string | null = null) {
@@ -46,7 +49,7 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   }
   function toggle(id: string) { setSelected(previous => { const result = new Set(previous); if (result.has(id)) result.delete(id); else result.add(id); return result; }); }
   function pickFiles() { fileInput.current?.click(); }
-  async function change(ids: string[], patch: { favorite?: boolean; trashed?: boolean }) {
+  async function change(ids: string[], patch: PhotoPatch): Promise<boolean> {
     setActionBusy(true); setNotice('');
     try {
       for (const id of ids) {
@@ -54,8 +57,9 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
         if (focused?.id === id) setFocused(patch.trashed !== undefined ? null : updated);
       }
       setSelected(new Set());
-      setNotice(patch.trashed === true ? 'Fotos movidas a la papelera. Puedes restaurarlas cuando quieras.' : patch.trashed === false ? 'Fotos de vuelta en tu biblioteca.' : 'Favoritos actualizados.');
-    } catch (error) { setNotice(errorMessage(error)); }
+      setNotice('location' in patch ? 'Ubicación actualizada.' : patch.trashed === true ? 'Fotos movidas a la papelera. Puedes restaurarlas cuando quieras.' : patch.trashed === false ? 'Fotos de vuelta en tu biblioteca.' : 'Favoritos actualizados.');
+      return true;
+    } catch (error) { setNotice(errorMessage(error)); return false; }
     finally { setActionBusy(false); refresh(); }
   }
   async function removeFromAlbum() {
@@ -101,12 +105,12 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
         {view !== 'trash' && <><button className="button" disabled={actionBusy} onClick={() => setAlbumPhotos([...selected])}><FolderHeart size={17} /> Añadir a álbum</button><button className="icon-button" disabled={actionBusy} aria-label="Marcar selección como favorita" onClick={() => void change([...selected], { favorite: true })}><Heart size={18} /></button></>}
         <button className="button" disabled={actionBusy} onClick={() => void change([...selected], { trashed: view !== 'trash' })}>{view === 'trash' ? <RotateCcw size={17} /> : <Trash2 size={17} />}{view === 'trash' ? 'Restaurar' : 'A la papelera'}</button>
       </div>}
-      {library.error ? <div className="connection-error" role="alert"><HardDrive size={30} /><h2>No podemos abrir tu biblioteca</h2><p>{library.error}</p><button className="button" onClick={refresh}>Volver a intentar</button></div> : library.busy ? <div className="skeleton-grid" aria-label="Cargando biblioteca" aria-busy="true">{Array.from({ length: 8 }, (_, i) => <div key={i} />)}</div> : view === 'settings' ? <Settings stats={library.stats} name={user.name} /> : view === 'albums' && !albumId ? <Albums albums={library.albums} onOpen={id => navigate('albums', id)} onCreate={() => setAlbumPhotos([])} /> : library.items.length === 0 ?
+      {view === 'places' ? <Suspense fallback={<p>Cargando el mapa…</p>}><Places revision={revision} onOpen={photo => { setFocused(photo); setNotice(''); }} /></Suspense> : library.error ? <div className="connection-error" role="alert"><HardDrive size={30} /><h2>No podemos abrir tu biblioteca</h2><p>{library.error}</p><button className="button" onClick={refresh}>Volver a intentar</button></div> : library.busy ? <div className="skeleton-grid" aria-label="Cargando biblioteca" aria-busy="true">{Array.from({ length: 8 }, (_, i) => <div key={i} />)}</div> : view === 'settings' ? <Settings stats={library.stats} name={user.name} csrf={user.csrf} onPasswordChanged={onLogout} /> : view === 'albums' && !albumId ? <Albums albums={library.albums} onOpen={id => navigate('albums', id)} onCreate={() => setAlbumPhotos([])} /> : library.items.length === 0 ?
         <EmptyState title={search ? 'No encontramos esos recuerdos.' : view === 'favorites' ? 'Un lugar para tus imprescindibles.' : view === 'trash' ? 'Todo está en su sitio.' : albumId ? 'Esta historia está por empezar.' : 'Tu historia empieza aquí.'} text={search ? 'Prueba otro nombre de archivo o una fecha como 2026-09.' : view === 'favorites' ? 'Toca el corazón de una foto y la encontrarás aquí.' : view === 'trash' ? 'Las fotos que muevas a la papelera aparecerán aquí.' : albumId ? 'Selecciona fotos en tu biblioteca y añádelas a este álbum.' : 'Añade tus primeras fotos y construye un hogar para tus recuerdos. Puedes arrastrarlas aquí o elegirlas desde tu dispositivo.'} action={view === 'library' && !search ? pickFiles : undefined} /> :
         <><Gallery photos={library.items} selected={selected} onSelect={toggle} onOpen={photo => { setFocused(photo); setNotice(''); }} compact={compact} />{library.items.length < library.total && <div className="load-more"><button className="button" disabled={library.moreBusy} onClick={() => void library.loadMore()}>{library.moreBusy ? 'Cargando…' : 'Ver más recuerdos'}</button><small>{library.items.length} de {library.total} fotos</small></div>}</>}
       <footer className="library-footer"><span><Check size={13} /> Originales conservados</span><span>Un poquito de vida, bien guardada.</span></footer>
     </main></div>
-    {focused && <Lightbox key={focused.id} photo={focused} busy={actionBusy} previous={focusIndex > 0 ? () => setFocused(library.items[focusIndex - 1]) : undefined} next={focusIndex >= 0 && focusIndex < library.items.length - 1 ? () => setFocused(library.items[focusIndex + 1]) : undefined} onClose={() => setFocused(null)} onUpdate={patch => void change([focused.id], patch)} onAlbum={() => { setAlbumPhotos([focused.id]); setFocused(null); }} onRemove={albumId ? () => void removeFromAlbum() : undefined} />}
+    {focused && <Lightbox key={focused.id} photo={focused} busy={actionBusy} notice={notice} previous={focusIndex > 0 ? () => setFocused(library.items[focusIndex - 1]) : undefined} next={focusIndex >= 0 && focusIndex < library.items.length - 1 ? () => setFocused(library.items[focusIndex + 1]) : undefined} onClose={() => setFocused(null)} onUpdate={patch => change([focused.id], patch)} onAlbum={() => { setAlbumPhotos([focused.id]); setFocused(null); }} onRemove={albumId ? () => void removeFromAlbum() : undefined} />}
     {albumPhotos !== null && <AlbumModal albums={library.albums} photoIds={albumPhotos} csrf={user.csrf} onClose={() => { setAlbumPhotos(null); refresh(); }} onDone={id => { setAlbumPhotos(null); setSelected(new Set()); navigate('albums', id); refresh(); }} />}
     {upload.state && <UploadPanel state={upload.state} onCancel={upload.cancel} onDismiss={upload.dismiss} onRetry={files => void upload.upload(files)} />}
   </div>;

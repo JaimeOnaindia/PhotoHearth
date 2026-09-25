@@ -8,7 +8,9 @@ COPY public ./public
 RUN npm run build
 
 FROM ghcr.io/astral-sh/uv:0.11.0 AS uv
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.12-slim-trixie AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /usr/local/bin/uv
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     PHOTOHEARTH_DATA=/data UV_CACHE_DIR=/tmp/uv-cache \

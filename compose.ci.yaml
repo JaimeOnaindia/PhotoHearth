@@ -26,7 +26,14 @@ services:
       dockerfile: agent.Dockerfile
     restart: unless-stopped
     init: true
-    depends_on: [jenkins]
+    depends_on:
+      jenkins:
+        condition: service_started
+      ci-db:
+        condition: service_healthy
+    environment:
+      PHOTOHEARTH_TEST_DATABASE_URL: postgresql+psycopg://postgres:ci-only-not-production@ci-db:5432/photohearth_test
+    networks: [default, ci_storage]
     volumes:
       - agent_work:/home/jenkins/agent
       - agent_config:/agent-config:ro
@@ -38,6 +45,24 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+  ci-db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: photohearth_test
+      POSTGRES_PASSWORD: ci-only-not-production
+    tmpfs:
+      - /var/lib/postgresql/data:size=256m
+    networks: [ci_storage]
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d photohearth_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 volumes:
   jenkins_home:
   agent_config:
@@ -45,3 +70,6 @@ volumes:
 secrets:
   jenkins_password:
     file: ./data/deployment/jenkins-password
+networks:
+  ci_storage:
+    internal: true

@@ -41,20 +41,31 @@ export function useUpload(csrf: string, onDone: () => void) {
     const active = new AbortController(); controller.current = active;
     const result: UploadState = { current: 0, total: files.length, progress: 0, name: '', done: false, saved: 0, duplicates: 0, failures: [], canceled: false };
     setState({ ...result });
-    for (let i = 0; i < files.length; i++) {
-      if (active.signal.aborted) break;
-      result.current = i + 1; result.name = files[i].name; result.progress = 0;
+    let nextIndex = 0;
+    const progresses = files.map(() => 0);
+    function report(index: number, progress: number) {
+      progresses[index] = progress;
+      result.progress = Math.round(progresses.reduce((sum, value) => sum + value, 0) / files.length);
       setState({ ...result });
-      try {
-        if (files[i].size > 40 * 1024 * 1024) throw new Error('Supera el máximo de 40 MB por foto.');
-        const uploaded = await send(files[i], csrf, active.signal, progress => setState({ ...result, progress }));
-        if (uploaded.duplicate && uploaded.photo.deleted_at) throw new Error('Ya está en la papelera. Restáurala desde allí.');
-        if (uploaded.duplicate) result.duplicates += 1; else result.saved += 1;
-      } catch (error) {
-        if (active.signal.aborted) break;
-        result.failures = [...result.failures, { file: files[i], message: errorMessage(error) }];
+    }
+    async function worker() {
+      while (!active.signal.aborted && nextIndex < files.length) {
+        const index = nextIndex++;
+        result.current = nextIndex; result.name = files[index].name;
+        setState({ ...result });
+        try {
+          if (files[index].size > 40 * 1024 * 1024) throw new Error('Supera el máximo de 40 MB por foto.');
+          const uploaded = await send(files[index], csrf, active.signal, progress => report(index, progress));
+          if (uploaded.duplicate && uploaded.photo.deleted_at) throw new Error('Ya está en la papelera. Restáurala desde allí.');
+          if (uploaded.duplicate) result.duplicates += 1; else result.saved += 1;
+        } catch (error) {
+          if (active.signal.aborted) break;
+          result.failures = [...result.failures, { file: files[index], message: errorMessage(error) }];
+        }
+        report(index, 100);
       }
     }
+    await Promise.all([worker(), worker()]);
     result.done = true; result.canceled = active.signal.aborted; result.progress = 100;
     setState({ ...result }); controller.current = null; onDone();
   }

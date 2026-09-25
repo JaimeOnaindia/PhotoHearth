@@ -28,7 +28,10 @@ pipeline {
             }
         }
         stage('API y migraciones') {
-            steps { sh '.venv/bin/pytest --junitxml=reports/api.xml' }
+            steps {
+                sh 'test -n "$PHOTOHEARTH_TEST_DATABASE_URL"'
+                sh '.venv/bin/pytest --junitxml=reports/api.xml'
+            }
         }
         stage('Web y navegadores') {
             steps {

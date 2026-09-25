@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.config import Settings
 from backend.db import connect
+from backend.geography import gps_coordinates
 from backend.models import Photo
 
 register_heif_opener()
@@ -57,8 +58,10 @@ def ingest(settings: Settings, temporary: Path, filename: str) -> dict:
                 source.verify()
             with Image.open(temporary) as source:
                 taken = uploaded
+                latitude, longitude = None, None
                 try:
                     exif = source.getexif()
+                    latitude, longitude = gps_coordinates(exif)
                     original_date = exif.get_ifd(0x8769).get(36867) or exif.get(306)
                     if original_date:
                         taken = datetime.strptime(
@@ -91,6 +94,8 @@ def ingest(settings: Settings, temporary: Path, filename: str) -> dict:
                 height=height,
                 taken_at=taken,
                 uploaded_at=uploaded,
+                latitude=latitude,
+                longitude=longitude,
             )
             db.add(result)
             db.flush()

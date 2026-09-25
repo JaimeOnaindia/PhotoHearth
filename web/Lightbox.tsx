@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Heart, ImageOff, RotateCcw, Trash2 } from 'lucide-react';
-import { bytes, dateLabel, fileUrl, type Photo } from './api';
+import { bytes, dateLabel, fileUrl, type Photo, type PhotoPatch } from './api';
+import { LocationEditor } from './LocationEditor';
 import { Modal } from './ui';
 
-export function Lightbox({ photo, previous, next, onClose, onUpdate, onAlbum, onRemove, busy }: {
+export function Lightbox({ photo, previous, next, onClose, onUpdate, onAlbum, onRemove, busy, notice }: {
   photo: Photo; previous?: () => void; next?: () => void; onClose: () => void;
-  onUpdate: (patch: { favorite?: boolean; trashed?: boolean }) => void;
-  onAlbum: () => void; onRemove?: () => void; busy: boolean;
+  onUpdate: (patch: PhotoPatch) => Promise<boolean>;
+  onAlbum: () => void; onRemove?: () => void; busy: boolean; notice: string;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'ArrowLeft') previous?.();
       if (e.key === 'ArrowRight') next?.();
     };
@@ -29,5 +31,7 @@ export function Lightbox({ photo, previous, next, onClose, onUpdate, onAlbum, on
         {!photo.deleted_at && <button className="button" disabled={busy} onClick={onAlbum}>Añadir a álbum</button>}
         {onRemove && <button className="button subtle" disabled={busy} onClick={onRemove}>Quitar del álbum</button>}
       </div></div>
+    {notice && <p className="notice" role="status">{notice}</p>}
+    <LocationEditor photo={photo} busy={busy} onUpdate={onUpdate} />
   </Modal>;
 }

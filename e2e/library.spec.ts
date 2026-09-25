@@ -3,8 +3,16 @@ import { test, expect } from '@playwright/test';
 test('private photo library works from upload to restore', async ({ page }, info) => {
   const errors: string[] = [];
   const external: string[] = [];
+  const tiles: string[] = [];
+  // Never download public map tiles from automated browser tests.
+  await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({
+    contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8eedf"/><path d="M0 120H256M120 0V256" stroke="#fcfaf2" stroke-width="12"/></svg>',
+  }));
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:8765') && !request.url().startsWith('data:')) external.push(request.url()); });
+  page.on('request', request => {
+    if (request.url().startsWith('https://tile.openstreetmap.org/')) tiles.push(request.url());
+    else if (!request.url().startsWith('http://127.0.0.1:8765') && !request.url().startsWith('data:')) external.push(request.url());
+  });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Lo que importa/ })).toBeVisible();
   await page.screenshot({ path: `test-results/login-${info.project.name}.png`, fullPage: true });
@@ -48,12 +56,39 @@ test('private photo library works from upload to restore', async ({ page }, info
   await page.getByRole('button', { name: 'Abrir recuerdo-01.jpg', exact: true }).click();
   await page.getByLabel('Quitar de favoritos', { exact: true }).click();
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Lugares', exact: true }).click();
+  await expect(page.locator('.place-card')).toHaveCount(3);
+  expect(tiles).toHaveLength(0);
+  await page.getByRole('button', { name: 'Activar mapa', exact: true }).click();
+  await expect(page.locator('.map-consent')).toHaveCount(0);
+  await expect.poll(() => tiles.length).toBeGreaterThan(0);
+  await expect(page.locator('.memory-marker')).toHaveCount(3);
+  await page.screenshot({ path: `test-results/places-${info.project.name}.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.locator('.place-card').first().click();
+  await expect(page.locator('.place-photos .photo-card')).toHaveCount(4);
+  await page.locator('.place-photos .photo-card').first().click();
+  await page.getByRole('button', { name: 'Editar ubicación', exact: true }).click();
+  await page.getByLabel('Nombre del lugar', { exact: true }).fill('Nuestro viaje');
+  await page.getByRole('button', { name: 'Guardar ubicación', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('Ubicación actualizada.', { exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'Mi hogar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'El espacio de tus recuerdos' })).toBeVisible();
   await expect(page.getByLabel('Espacio ocupado del disco')).toBeVisible();
   expect(external).toEqual([]);
   expect(errors).toEqual([]);
-  await page.getByLabel('Cerrar sesión', { exact: true }).click();
+  // Reuse only the fixture password so the next viewport starts independently.
+  // Distinct new passwords and rejection of old ones are covered by API tests.
+  await page.getByLabel('Contraseña actual', { exact: true }).fill('photohearth-test-only-password');
+  await page.getByLabel('Nueva contraseña', { exact: true }).fill('photohearth-test-only-password');
+  await page.getByLabel('Repite la nueva contraseña', { exact: true }).fill('mismatched-test-password');
+  await page.getByRole('button', { name: 'Cambiar y cerrar sesiones' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Las contraseñas nuevas no coinciden.');
+  await page.getByLabel('Repite la nueva contraseña', { exact: true }).fill('photohearth-test-only-password');
+  await page.screenshot({ path: `test-results/password-${info.project.name}.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.getByRole('button', { name: 'Cambiar y cerrar sesiones' }).click();
   await expect(page.getByRole('button', { name: 'Entrar a mi biblioteca' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Entrar a mi biblioteca' })).toBeVisible();

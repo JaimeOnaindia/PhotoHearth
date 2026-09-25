@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 import uvicorn
 from PIL import Image, ImageDraw
+from PIL.TiffImagePlugin import IFDRational
 
 from backend.auth import hasher
 from backend.config import Settings
@@ -34,7 +35,16 @@ def main():
             ],
             fill=mountain,
         )
-        image.save(fixtures / f"recuerdo-{i + 1:02}.jpg", "JPEG")
+        exif = Image.Exif()
+        locations = [(43, 15, 2, 54), (40, 25, 3, 42), (37, 23, 5, 59)]
+        lat_d, lat_m, lon_d, lon_m = locations[i % len(locations)]
+        exif[0x8825] = {
+            1: "N",
+            2: tuple(map(IFDRational, (lat_d, lat_m, 0))),
+            3: "W",
+            4: tuple(map(IFDRational, (lon_d, lon_m, 0))),
+        }
+        image.save(fixtures / f"recuerdo-{i + 1:02}.jpg", "JPEG", exif=exif)
     with TemporaryDirectory(prefix="photohearth-e2e-") as directory:
         settings = Settings(
             data_dir=Path(directory), secure_cookie=False, origins=("http://127.0.0.1:8765",)

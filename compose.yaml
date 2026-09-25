@@ -7,14 +7,45 @@ services:
     environment:
       PHOTOHEARTH_ORIGINS: https://${PHOTOHEARTH_DOMAIN:-photos.home.arpa}
       PHOTOHEARTH_SECURE_COOKIE: "true"
+      PGHOST: db
+      PGUSER: photohearth
+      PGDATABASE: photohearth
+      PHOTOHEARTH_DB_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    networks: [default, storage]
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - ${PHOTOHEARTH_STORAGE:-photohearth_data}:/data
+      - ${PHOTOHEARTH_STORAGE:-photohearth_data_pg}:/data
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 2g
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: photohearth
+      POSTGRES_DB: photohearth
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [storage]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U photohearth -d photohearth"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
     pids_limit: 128
     logging:
       driver: json-file
@@ -41,6 +72,15 @@ services:
       options: { max-size: "10m", max-file: "3" }
 
 volumes:
-  photohearth_data:
+  photohearth_data_pg:
+  postgres_data:
   caddy_data:
   caddy_config:
+
+networks:
+  storage:
+    internal: true
+
+secrets:
+  database_password:
+    file: ./data/deployment/postgres-password

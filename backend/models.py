@@ -39,6 +39,14 @@ class LoginAttempt(Base):
 
 class Photo(Base):
     __tablename__ = "photos"
+    __table_args__ = (
+        CheckConstraint(
+            "(latitude IS NULL AND longitude IS NULL) OR "
+            "(latitude IS NOT NULL AND longitude IS NOT NULL AND "
+            "latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)",
+            name="valid_coordinates",
+        ),
+    )
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     sha256: Mapped[str] = mapped_column(String(64), unique=True)
     filename: Mapped[str] = mapped_column(String(255))
@@ -51,9 +59,13 @@ class Photo(Base):
     uploaded_at: Mapped[str]
     favorite: Mapped[bool] = mapped_column(default=False, server_default="0")
     deleted_at: Mapped[str | None]
+    latitude: Mapped[float | None]
+    longitude: Mapped[float | None]
+    location_name: Mapped[str | None] = mapped_column(String(120))
 
 
 Index("photos_timeline", Photo.deleted_at, Photo.taken_at.desc(), Photo.id.desc())
+Index("photos_location", Photo.deleted_at, Photo.latitude, Photo.longitude)
 
 
 class Album(Base):

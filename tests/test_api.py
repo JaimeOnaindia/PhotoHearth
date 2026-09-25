@@ -1,5 +1,6 @@
 import io
 import time
+from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,7 +8,6 @@ from PIL import Image
 from sqlalchemy import update
 
 from backend.auth import COOKIE, hasher
-from backend.config import Settings
 from backend.db import connect
 from backend.main import create_app
 from backend.models import LoginSession, User
@@ -16,10 +16,10 @@ PASSWORD = "a-test-password-for-my-home"
 
 
 @pytest.fixture
-def client(tmp_path):
-    settings = Settings(
-        data_dir=tmp_path,
-        web_dir=tmp_path / "web",
+def client(db_settings):
+    settings = replace(
+        db_settings,
+        web_dir=db_settings.data_dir / "web",
         secure_cookie=False,
         origins=("http://testserver",),
         max_upload=1024 * 1024,
@@ -81,7 +81,7 @@ def test_session_csrf_origin_and_logout(logged):
 
 
 def test_secure_cookie_defaults_and_expiry(client):
-    client.app.state.settings = Settings(data_dir=client.app.state.settings.data_dir)
+    client.app.state.settings = replace(client.app.state.settings, secure_cookie=True)
     response = client.post("/api/auth/login", json={"password": PASSWORD})
     cookie = response.headers["set-cookie"].lower()
     assert "secure" in cookie and "httponly" in cookie and "samesite=strict" in cookie
@@ -95,6 +95,83 @@ def test_login_rate_limit(client):
     for _ in range(5):
         assert client.post("/api/auth/login", json={"password": "wrong"}).status_code == 401
     assert client.post("/api/auth/login", json={"password": PASSWORD}).status_code == 429
+
+
+def test_password_change_revokes_every_session(logged):
+    first_token = logged.cookies[COOKIE]
+    second_login = logged.post("/api/auth/login", json={"password": PASSWORD})
+    second_token = logged.cookies[COOKIE]
+    logged.headers["X-CSRF-Token"] = second_login.json()["csrf"]
+    new_password = "a-different-test-password"
+    response = logged.post(
+        "/api/auth/password",
+        json={"current_password": PASSWORD, "new_password": new_password},
+    )
+    assert response.status_code == 200
+    assert "Max-Age=0" in response.headers["set-cookie"]
+    for token in (first_token, second_token):
+        logged.cookies.clear()
+        logged.cookies.set(COOKIE, token)
+        assert logged.get("/api/auth/me").status_code == 401
+    assert logged.post("/api/auth/login", json={"password": PASSWORD}).status_code == 401
+    assert logged.post("/api/auth/login", json={"password": new_password}).status_code == 200
+    with connect(logged.app.state.settings) as db:
+        encoded = db.get(User, 1).password_hash
+        assert encoded != new_password and hasher.verify(encoded, new_password)
+
+
+def test_password_change_requires_authentication_and_csrf(client):
+    body = {"current_password": PASSWORD, "new_password": "another-test-password"}
+    assert client.post("/api/auth/password", json=body).status_code == 401
+    login = client.post("/api/auth/login", json={"password": PASSWORD})
+    assert client.post("/api/auth/password", json=body).status_code == 403
+    assert (
+        client.post(
+            "/api/auth/password",
+            json=body,
+            headers={"X-CSRF-Token": login.json()["csrf"], "Origin": "https://evil.example"},
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.parametrize("new_password", ["too-short", "x" * 129])
+def test_password_change_rejects_invalid_length(logged, new_password):
+    assert (
+        logged.post(
+            "/api/auth/password",
+            json={"current_password": PASSWORD, "new_password": new_password},
+        ).status_code
+        == 422
+    )
+    assert logged.get("/api/auth/me").status_code == 200
+    with connect(logged.app.state.settings) as db:
+        assert hasher.verify(db.get(User, 1).password_hash, PASSWORD)
+
+
+def test_password_change_checks_current_password_and_limits_attempts(logged):
+    body = {"current_password": "incorrect", "new_password": "another-test-password"}
+    for _ in range(4):  # The initial login also counts toward the shared limit.
+        assert logged.post("/api/auth/password", json=body).status_code == 400
+    response = logged.post("/api/auth/password", json=body)
+    assert response.status_code == 429 and response.headers["retry-after"] == "60"
+    assert logged.get("/api/auth/me").status_code == 200
+    with connect(logged.app.state.settings) as db:
+        assert hasher.verify(db.get(User, 1).password_hash, PASSWORD)
+
+
+def test_login_cannot_create_session_after_concurrent_password_change(client, monkeypatch):
+    from backend import auth
+
+    class ChangingHasher:
+        def verify(self, encoded, password):
+            hasher.verify(encoded, password)
+            with connect(client.app.state.settings) as db:
+                db.get(User, 1).password_hash = hasher.hash("changed-by-another-request")
+
+    monkeypatch.setattr(auth, "hasher", ChangingHasher())
+    assert client.post("/api/auth/login", json={"password": PASSWORD}).status_code == 401
+    assert client.get("/api/auth/me").status_code == 401
 
 
 def test_photo_original_duplicate_thumbnail_and_restore(logged):

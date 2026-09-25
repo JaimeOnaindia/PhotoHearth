@@ -63,6 +63,9 @@ permanecen aplazadas.
 
 Desde el directorio del proyecto en el servidor:
 
+Antes del primer arranque PostgreSQL, preparar el secreto y seguir
+[la guía de migración](POSTGRES.md). No reutilizar directamente el volumen SQLite.
+
 ```bash
 sudo docker compose -f compose.yaml -f compose.ci.yaml up -d --build
 sudo docker compose -f compose.yaml -f compose.ci.yaml ps
@@ -103,11 +106,10 @@ El archivo contiene fotos y el hash de la contraseña; guardarlo en un destino
 cifrado y privado. No incluye contraseñas de Jenkins, certificados ni claves SSH.
 Las sesiones se excluyen para exigir un nuevo inicio de sesión al restaurar.
 
-Para restaurar: detener la app, extraer una copia propia verificada en un
-directorio **nuevo y vacío**, asignar propietario `10001:10001`, definir
-`PHOTOHEARTH_STORAGE` con esa ruta absoluta y arrancar la app. Conservar el
-volumen anterior hasta verificar fotos, álbumes y login. Nunca extraer un tar
-desconocido como root ni restaurar encima de una biblioteca activa.
+La copia PostgreSQL contiene `database.dump` y los archivos de imágenes.
+Seguir [la restauración PostgreSQL](POSTGRES.md). Las copias antiguas contienen
+`library.sqlite3` y requieren la versión SQLite para restaurar la biblioteca completa.
+Nunca extraer un tar desconocido como root ni restaurar encima de una biblioteca activa.
 
 La programación de copias externas queda pendiente de elegir un destino.
 
