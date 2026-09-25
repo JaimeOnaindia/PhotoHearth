@@ -34,8 +34,11 @@ seguridad de Jenkins, plugins y dependencias; las imágenes no se autoactualizan
 
 ## Estado inicial (25 de septiembre de 2026)
 
-Controlador y agente instalados, conectados y comprobados. Jenkins valida la
-sintaxis del Jenkinsfile. Todos los comandos de calidad y pruebas pasaron al
-ejecutarlos directamente en el agente. El repositorio GitHub aún está vacío:
-la publicación del código espera confirmación del propietario, por lo que no
-se ha ejecutado todavía el trabajo completo con checkout desde GitHub.
+Código publicado en `main` con autorización del propietario, sin contraseñas,
+claves privadas ni fotos. La ejecución #1 del trabajo PhotoHearth descargó el
+commit `a313ffe` desde GitHub y terminó con `SUCCESS` en unos 55 segundos:
+once pruebas de backend y cuatro de navegador, sin fallos ni pruebas omitidas.
+Jenkins publicó los resultados JUnit y `photohearth-source.tar.gz`.
+
+La consulta automática de cambios queda activada cada cinco minutos. Esto
+ejecuta las comprobaciones y genera el artefacto; no modifica producción.
