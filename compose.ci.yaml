@@ -1,0 +1,47 @@
+services:
+  gateway:
+    ports:
+      - "${PHOTOHEARTH_BIND_IP:-127.0.0.1}:8443:8443"
+    volumes:
+      - ./deploy/Caddyfile-ci:/etc/caddy/Caddyfile:ro
+  jenkins:
+    build: ./deploy/jenkins
+    restart: unless-stopped
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Xms256m -Xmx768m
+      JENKINS_PUBLIC_URL: https://${PHOTOHEARTH_DOMAIN:-photos.home.arpa}:8443/
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - agent_config:/agent-config
+    secrets: [jenkins_password]
+    mem_limit: 1536m
+    pids_limit: 256
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  ci-agent:
+    build:
+      context: ./deploy/jenkins
+      dockerfile: agent.Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on: [jenkins]
+    volumes:
+      - agent_work:/home/jenkins/agent
+      - agent_config:/agent-config:ro
+    shm_size: 256m
+    mem_limit: 3g
+    pids_limit: 512
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  jenkins_home:
+  agent_config:
+  agent_work:
+secrets:
+  jenkins_password:
+    file: ./data/deployment/jenkins-password

@@ -1,0 +1,13 @@
+{
+  "id": "/",
+  "name": "PhotoHearth · Tus fotos, en casa",
+  "short_name": "PhotoHearth",
+  "description": "Tu biblioteca privada de recuerdos, alojada en casa.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf9f6",
+  "theme_color": "#f6f5f0",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

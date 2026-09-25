@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.env
+data/
+playwright-report/
+test-results/
+reports/
+photohearth-source.tar.gz
+*.egg-info/

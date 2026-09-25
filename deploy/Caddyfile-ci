@@ -1,0 +1,18 @@
+{
+    default_sni {$PHOTOHEARTH_DOMAIN:photos.home.arpa}
+}
+
+{$PHOTOHEARTH_DOMAIN:photos.home.arpa} {
+    tls internal
+    encode zstd gzip
+    request_body {
+        max_size 40MB
+    }
+    reverse_proxy app:8000
+}
+
+https://{$PHOTOHEARTH_DOMAIN:photos.home.arpa}:8443 {
+    tls internal
+    encode zstd gzip
+    reverse_proxy jenkins:8080
+}

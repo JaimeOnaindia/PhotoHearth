@@ -1,0 +1,28 @@
+[project]
+name = "photohearth"
+version = "0.1.0"
+description = "Tu biblioteca de fotos, en casa."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "pillow>=11,<13",
+  "pillow-heif>=0.22,<2",
+  "argon2-cffi>=23,<26",
+  "sqlalchemy>=2.0,<2.1",
+  "alembic>=1.16,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1", "pip-audit>=2.9,<3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
