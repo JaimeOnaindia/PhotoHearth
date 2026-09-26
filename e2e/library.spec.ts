@@ -43,6 +43,12 @@ test('private photo library works from upload to restore', async ({ page }, info
   await page.getByRole('button', { name: 'Crear álbum', exact: true }).click();
   await expect(page.getByRole('heading', { name: `Mi verano ${info.project.name}`, exact: true })).toBeVisible();
   await expect(page.locator('.photo-card')).toHaveCount(1);
+  // Uploading an existing original from an album must add it to that album,
+  // even when the server deduplicates the upload.
+  await page.getByLabel('Seleccionar fotos para subir').setInputFiles('test-results/fixtures/recuerdo-02.jpg');
+  await expect(page.getByText('Subida terminada', { exact: true })).toBeVisible();
+  await page.getByLabel('Cerrar subidas').click();
+  await expect(page.locator('.photo-card')).toHaveCount(2);
   await page.getByRole('button', { name: 'Abrir recuerdo-01.jpg', exact: true }).click();
   await page.getByLabel('Mover a la papelera', { exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);

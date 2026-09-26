@@ -19,6 +19,9 @@ register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 60_000_000
 FORMATS = {
     "JPEG": ("jpg", "image/jpeg"),
+    # JPEG/MPF files may carry auxiliary pictures. Preview the primary frame,
+    # but preserve the complete original rather than re-encoding it.
+    "MPO": ("jpg", "image/jpeg"),
     "PNG": ("png", "image/png"),
     "WEBP": ("webp", "image/webp"),
     "HEIF": ("heic", "image/heic"),
