@@ -93,6 +93,13 @@ def test_location_filters_and_transactional_batch_updates(logged):
     assert logged.get("/api/photos", params={"location": "located"}).json()["total"] == 2
     places = logged.get("/api/places").json()
     assert places["total"] == 1 and places["items"][0]["name"] == "Bilbao"
+    assert logged.patch(f"/api/photos/{second}", json={"location": None}).status_code == 200
+    filtered = logged.get("/api/photos", params={"place": places["items"][0]["id"]})
+    assert filtered.status_code == 200 and filtered.json()["total"] == 1
+    assert logged.patch(
+        f"/api/photos/{second}",
+        json={"location": {"latitude": 43.263, "longitude": -2.935, "name": "Bilbao"}},
+    ).status_code == 200
 
     missing_id = "0" * 32
     failed = logged.patch(

@@ -9,11 +9,11 @@ router = APIRouter(prefix="/api/places", dependencies=[Depends(session)], tags=[
 
 
 def latitude_cell():
-    return func.floor((Photo.latitude + 90) * 100)
+    return func.floor(func.coalesce((Photo.latitude + 90) * 100, -1))
 
 
 def longitude_cell():
-    return func.floor((Photo.longitude + 180) * 100)
+    return func.floor(func.coalesce((Photo.longitude + 180) * 100, -1))
 
 
 @router.get("")
