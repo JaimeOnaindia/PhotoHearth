@@ -43,5 +43,16 @@ the production server.
 7. Verify health, authentication boundaries, migrations, and relevant user flows.
 8. Remove temporary release archives from the server after verification.
 
+## Keep verification output compact
+
+- Run the full required coverage, but use quiet reporters by default: `pytest -q`
+  and `npm test -- --reporter=dot`.
+- Do not print complete successful logs. Report the command, pass/fail totals, and
+  elapsed time only.
+- When a check fails, show the focused failure and rerun only its target with a
+  more detailed reporter before repeating the compact full suite.
+- Query Jenkins with `status` or `verify`; read its full log only to diagnose a
+  failure, and surface only the relevant excerpt.
+
 Never run `docker compose down -v`. Never replace `.env`, `data/`, imports,
 named volumes, or server-only secrets with files from a source archive.
