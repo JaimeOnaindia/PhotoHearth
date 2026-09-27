@@ -3,8 +3,11 @@ import L from 'leaflet';
 import { fileUrl, type Place } from './api';
 import 'leaflet/dist/leaflet.css';
 
-export function MapCanvas({ places, selected, enabled, onSelect }: {
+export type MapPoint = { latitude: number; longitude: number };
+
+export function MapCanvas({ places, selected, enabled, onSelect, draft, picking, onPick }: {
   places: Place[]; selected: string | null; enabled: boolean; onSelect: (id: string) => void;
+  draft?: MapPoint | null; picking?: boolean; onPick?: (latitude: number, longitude: number) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -41,14 +44,35 @@ export function MapCanvas({ places, selected, enabled, onSelect }: {
         icon: L.divIcon({ html: content, className: 'memory-marker', iconSize: [54, 62], iconAnchor: [27, 62] }),
         title: place.name || `${place.latitude.toFixed(3)}, ${place.longitude.toFixed(3)}`,
         alt: `Ver lugar: ${place.name || place.id}`, keyboard: true,
-      }).on('click', () => onSelect(place.id)).addTo(markers);
+      }).on('click', () => {
+        if (picking && onPick) onPick(place.latitude, place.longitude);
+        else onSelect(place.id);
+      }).addTo(markers);
     }
     if (places.length) map.current.fitBounds(markers.getBounds(), { padding: [65, 65], maxZoom: 11, animate: false });
     return () => { markers.remove(); };
-  }, [places, onSelect]);
+  }, [places, onSelect, onPick, picking]);
+  useEffect(() => {
+    if (!map.current || !onPick) return;
+    const instance = map.current;
+    const handle = (event: L.LeafletMouseEvent) => onPick(
+      Number(event.latlng.lat.toFixed(6)),
+      Number(event.latlng.lng.toFixed(6)),
+    );
+    instance.on('click', handle);
+    return () => { instance.off('click', handle); };
+  }, [onPick]);
+  useEffect(() => {
+    if (!map.current || !draft) return;
+    const marker = L.marker([draft.latitude, draft.longitude], {
+      icon: L.divIcon({ html: '<span></span>', className: 'draft-marker', iconSize: [30, 38], iconAnchor: [15, 38] }),
+      title: 'Nueva ubicación', keyboard: false,
+    }).addTo(map.current);
+    return () => { marker.remove(); };
+  }, [draft]);
   useEffect(() => {
     const place = places.find(item => item.id === selected);
     if (place && map.current) map.current.setView([place.latitude, place.longitude], 12, { animate: false });
   }, [selected, places]);
-  return <div ref={element} className="places-map" role="region" aria-label="Mapa de tus recuerdos" />;
+  return <div ref={element} className={`places-map ${picking ? 'is-picking' : ''}`} role="region" aria-label={picking ? 'Elige una ubicación en el mapa' : 'Mapa de tus recuerdos'} />;
 }

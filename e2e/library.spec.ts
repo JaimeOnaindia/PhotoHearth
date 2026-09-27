@@ -25,8 +25,12 @@ test('private photo library works from upload to restore', async ({ page }, info
   await expect(page.getByText('Subida terminada', { exact: true })).toBeVisible({ timeout: 30_000 });
   await page.getByLabel('Cerrar subidas').click();
   await expect(page.locator('.photo-card')).toHaveCount(12);
-  await expect(page.locator('.photo-card img').first()).toBeVisible();
-  expect(await page.locator('.photo-card img').evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBeTruthy();
+  const thumbnails = page.locator('.photo-card img');
+  for (let index = 0; index < await thumbnails.count(); index += 1) {
+    const thumbnail = thumbnails.nth(index);
+    await thumbnail.scrollIntoViewIfNeeded();
+    await expect.poll(() => thumbnail.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
   await page.screenshot({ path: `test-results/library-${info.project.name}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.getByLabel('Buscar fotos').fill('recuerdo-01');
@@ -79,6 +83,31 @@ test('private photo library works from upload to restore', async ({ page }, info
   await page.getByRole('button', { name: 'Guardar ubicación', exact: true }).click();
   await expect(page.getByRole('dialog').getByText('Ubicación actualizada.', { exact: true })).toBeVisible();
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
+  const missingFilename = `sin-ubicacion-${info.project.name}.png`;
+  const missingPlace = `Bilbao ${info.project.name}`;
+  const missingPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  await page.getByLabel('Seleccionar fotos para subir').setInputFiles({
+    name: missingFilename,
+    mimeType: 'image/png',
+    buffer: Buffer.concat([missingPng, Buffer.from(info.project.name)]),
+  });
+  await expect(page.getByText('Subida terminada', { exact: true })).toBeVisible();
+  await page.getByLabel('Cerrar subidas').click();
+  await expect(page.getByText('1 foto necesita un lugar', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Organizar fotos sin ubicación', exact: true }).click();
+  await page.getByRole('button', { name: `Seleccionar ${missingFilename}`, exact: true }).click();
+  await page.getByRole('region', { name: 'Elige una ubicación en el mapa' }).click({ position: { x: 32, y: 32 } });
+  await page.getByLabel('Nombre del lugar', { exact: true }).fill(missingPlace);
+  await page.screenshot({ path: `test-results/places-organizer-${info.project.name}.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Situar 1 foto', exact: true }).click();
+  await expect(page.getByText(`1 foto situada en ${missingPlace}.`, { exact: true })).toBeVisible();
+  await expect(page.locator('.place-card')).toHaveCount(4);
+  await expect(page.locator('.memory-marker')).toHaveCount(4);
+  await page.getByRole('navigation').getByRole('button', { name: /Todas las fotos/ }).click();
+  await page.getByLabel('Buscar fotos').fill(missingFilename);
+  await page.getByRole('button', { name: `Abrir ${missingFilename}`, exact: true }).click();
+  await page.getByLabel('Mover a la papelera', { exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('navigation').getByRole('button', { name: 'Mi hogar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'El espacio de tus recuerdos' })).toBeVisible();
   await expect(page.getByLabel('Espacio ocupado del disco')).toBeVisible();
