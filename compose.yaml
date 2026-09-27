@@ -11,13 +11,20 @@ services:
       PGUSER: photohearth
       PGDATABASE: photohearth
       PHOTOHEARTH_DB_PASSWORD_FILE: /run/secrets/database_password
+      PHOTOHEARTH_IMPORT_DIR: /imports
     secrets: [database_password]
+    group_add:
+      - "${PHOTOHEARTH_IMPORT_GID:-1000}"
     networks: [default, storage]
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ${PHOTOHEARTH_STORAGE:-photohearth_data_pg}:/data
+      - type: bind
+        source: ${PHOTOHEARTH_IMPORTS:-./imports}
+        target: /imports
+        read_only: true
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777

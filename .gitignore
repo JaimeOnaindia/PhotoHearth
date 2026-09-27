@@ -12,3 +12,5 @@ test-results/
 reports/
 photohearth-source.tar.gz
 *.egg-info/
+imports/*
+!imports/.gitkeep

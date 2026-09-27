@@ -15,6 +15,13 @@ export type Stats = {
 };
 export type PhotoPage = { items: Photo[]; total: number };
 export type View = 'library' | 'favorites' | 'albums' | 'trash' | 'settings' | 'places';
+export type ImportStatus = 'queued' | 'running' | 'paused' | 'completed' | 'completed_errors' | 'canceled';
+export type ImportJob = {
+  id: string; source: string; status: ImportStatus; created_at: string; updated_at: string;
+  total: number; finished: number; pending: number; running: number; imported: number;
+  duplicates: number; failed: number; canceled: number;
+};
+export type ImportList = { enabled: boolean; jobs: ImportJob[] };
 
 export class ApiError extends Error {
   status: number;

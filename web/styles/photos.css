@@ -74,6 +74,32 @@
 .disk-detail progress { margin: 15px 0 10px; height: 7px; }
 .disk-detail p { font-size: 10px; }
 .setting-note { display: flex; align-items: center; gap: 7px; padding-top: 15px; font-size: 11px; color: #87947c; }
+.import-heading { display: flex; align-items: flex-start; gap: 18px; }
+.import-heading .settings-icon { flex-shrink: 0; margin: 0; }
+.import-heading h2 { margin-top: 7px; }
+.import-form { margin: 22px 0 4px; padding: 20px; border-radius: 11px; background: #f4f5ee; border: 1px solid #e5e8dc; }
+.import-form label { margin-top: 0; }
+.import-form > div { display: flex; gap: 10px; }
+.import-form input { flex: 1; padding: 11px 13px; border: 1px solid #dcded4; border-radius: 8px; background: white; }
+.import-form small { margin-top: 9px; color: var(--muted); }
+.import-form code { padding: 1px 5px; border-radius: 4px; background: #e7eadf; }
+.import-warning { margin: 20px 0 0; padding: 13px 15px; border-radius: 8px; background: #f8eadf; color: #8c543d !important; }
+.import-loading, .import-empty { margin: 22px 0 0; padding: 22px; border: 1px dashed #dfe2d7; border-radius: 10px; text-align: center; }
+.import-jobs { display: grid; gap: 10px; margin-top: 20px; }
+.import-job { padding: 16px 18px; border: 1px solid #e3e5dc; border-radius: 10px; background: #fcfcf8; }
+.import-job header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.import-job header > div { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.import-job header strong { font-size: 12px; overflow-wrap: anywhere; }
+.import-job time { flex-shrink: 0; font-size: 9px; color: var(--muted); }
+.import-status { padding: 3px 7px; border-radius: 20px; background: #e9ede4; color: #52664f; font-size: 9px; }
+.import-status.paused, .import-status.canceled { background: #eeece7; color: #777168; }
+.import-status.completed_errors { background: #f7e7df; color: #98523f; }
+.import-job progress { height: 6px; margin: 14px 0 8px; }
+.import-job > p { margin: 0; font-size: 10px; }
+.import-job > p strong { color: var(--ink); }
+.import-job > p span { color: var(--coral); }
+.import-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+.import-actions .button { min-height: 32px; padding: 6px 10px; font-size: 10px; }
 .upload-panel { width: 345px; max-width: calc(100vw - 30px); position: fixed; right: 24px; bottom: 24px; background: #fffefb; box-shadow: 0 10px 50px #27342324; border: 1px solid var(--line); border-radius: 13px; z-index: 15; overflow: hidden; }
 .upload-panel header { display: flex; align-items: center; gap: 9px; padding: 9px 12px; background: #f0f2e9; border-bottom: 1px solid var(--line); }
 .upload-panel header strong { font-size: 12px; margin-right: auto; }
@@ -93,6 +119,8 @@
   .lightbox { width: calc(100% - 18px); border-radius: 13px; max-height: calc(100dvh - 24px); } .viewer-image { height: 53dvh; padding: 45px 8px 20px; } .viewer-arrow { width: 30px; height: 40px; background: #0007; } .viewer-arrow.prev { left: 5px; } .viewer-arrow.next { right: 5px; }
   .viewer-info { padding: 20px 15px; } .viewer-info h2 { font-size: 16px; } .viewer-info .eyebrow { font-size: 8px; }
   .settings-grid { grid-template-columns: 1fr; } .settings-card { padding: 23px; } .settings-card h2 { font-size: 20px; } .disk-detail span { display: block; margin: 4px 0 0; }
+  .import-heading { gap: 12px; } .import-heading .settings-icon { padding: 10px; } .import-form { padding: 15px; }
+  .import-form > div { align-items: stretch; flex-direction: column; } .import-job header { flex-direction: column; gap: 6px; } .import-job time { white-space: normal; }
   .upload-panel { right: 15px; bottom: calc(85px + env(safe-area-inset-bottom)); }
   .modal-inner { padding: 27px; } .modal h2 { font-size: 24px; }
 }

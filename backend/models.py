@@ -1,4 +1,12 @@
-from sqlalchemy import CheckConstraint, ForeignKey, Index, MetaData, String
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    MetaData,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -83,3 +91,51 @@ class AlbumPhoto(Base):
     photo_id: Mapped[str] = mapped_column(
         ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+class ImportJob(Base):
+    __tablename__ = "import_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'paused', 'completed', "
+            "'completed_errors', 'canceled')",
+            name="status",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    source: Mapped[str] = mapped_column(String(1024))
+    status: Mapped[str] = mapped_column(String(24))
+    created_at: Mapped[str]
+    updated_at: Mapped[str]
+
+
+Index("import_jobs_status", ImportJob.status, ImportJob.created_at)
+
+
+class ImportItem(Base):
+    __tablename__ = "import_items"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'imported', 'duplicate', 'failed', 'canceled')",
+            name="status",
+        ),
+        CheckConstraint("bytes >= 0", name="non_negative_bytes"),
+        CheckConstraint("attempts >= 0", name="non_negative_attempts"),
+        UniqueConstraint("job_id", "relative_path"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        ForeignKey("import_jobs.id", ondelete="CASCADE"), index=True
+    )
+    relative_path: Mapped[str] = mapped_column(String(1024))
+    bytes: Mapped[int] = mapped_column(BigInteger)
+    modified_ns: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    photo_id: Mapped[str | None] = mapped_column(
+        ForeignKey("photos.id", ondelete="SET NULL"), nullable=True
+    )
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+Index("import_items_work", ImportItem.job_id, ImportItem.status, ImportItem.id)

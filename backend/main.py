@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
@@ -9,10 +10,31 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, func, select
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from backend import albums, auth, photos, places
+from backend import albums, auth, imports, photos, places
 from backend.config import Settings
 from backend.db import connect, initialize
+from backend.importer import process_next_import, recover_imports
 from backend.models import Album, Photo
+
+logger = logging.getLogger(__name__)
+
+
+async def import_worker(
+    settings: Settings, wakeup: asyncio.Event, stopping: asyncio.Event
+) -> None:
+    while not stopping.is_set():
+        wakeup.clear()
+        try:
+            processed = await asyncio.to_thread(process_next_import, settings)
+        except Exception:
+            logger.exception("The background import worker failed")
+            processed = False
+        if processed:
+            continue
+        try:
+            await asyncio.wait_for(wakeup.wait(), timeout=5)
+        except TimeoutError:
+            pass
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -21,8 +43,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         initialize(settings)
+        recover_imports(settings)
         app.state.upload_lock = asyncio.Semaphore(settings.upload_concurrency)
-        yield
+        app.state.import_wakeup = asyncio.Event()
+        stopping = asyncio.Event()
+        worker = None
+        if settings.import_dir is not None:
+            worker = asyncio.create_task(
+                import_worker(settings, app.state.import_wakeup, stopping),
+                name="photohearth-import-worker",
+            )
+        try:
+            yield
+        finally:
+            if worker is not None:
+                stopping.set()
+                app.state.import_wakeup.set()
+                await worker
 
     app = FastAPI(title="PhotoHearth", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
@@ -62,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(photos.router)
     app.include_router(albums.router)
     app.include_router(places.router)
+    app.include_router(imports.router)
 
     @app.get("/api/health")
     def health():
