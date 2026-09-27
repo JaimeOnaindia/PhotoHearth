@@ -90,7 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
         if request.url.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
+            response.headers.setdefault("Cache-Control", "no-store")
         if settings.secure_cookie:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response

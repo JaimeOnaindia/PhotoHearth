@@ -187,6 +187,7 @@ def test_photo_original_duplicate_thumbnail_and_restore(logged):
     assert "attachment" in original.headers["content-disposition"]
     thumb = logged.get(f"/api/photos/{photo['id']}/file")
     assert thumb.headers["content-type"] == "image/webp"
+    assert thumb.headers["cache-control"] == "private, max-age=31536000, immutable"
     assert Image.open(io.BytesIO(thumb.content)).size == (80, 60)
     assert logged.patch(f"/api/photos/{photo['id']}", json={"favorite": True}).status_code == 200
     assert logged.get("/api/photos?view=favorites").json()["total"] == 1
@@ -240,6 +241,40 @@ def test_albums_search_pagination_and_trash_counts(logged):
     logged.delete(f"/api/albums/{album}/photos/{first}")
     assert logged.get(f"/api/photos?album={album}").json()["total"] == 0
     assert logged.get("/api/photos").json()["total"] == 2
+
+
+def test_cursor_pagination_is_stable_and_can_skip_recount(logged):
+    photo_ids = {
+        upload(logged, "primera.jpg", "coral")["photo"]["id"],
+        upload(logged, "segunda.jpg", "blue")["photo"]["id"],
+    }
+    first_page = logged.get("/api/photos", params={"limit": 1}).json()
+    assert first_page["total"] == 2
+    assert first_page["next_cursor"]
+
+    newest = first_page["items"][0]["id"]
+    added_later = upload(logged, "nueva.jpg", "green")["photo"]["id"]
+    second_page = logged.get(
+        "/api/photos",
+        params={
+            "limit": 1,
+            "cursor": first_page["next_cursor"],
+            "include_total": False,
+        },
+    ).json()
+    assert second_page["total"] is None
+    assert second_page["items"][0]["id"] == (photo_ids - {newest}).pop()
+    assert second_page["items"][0]["id"] != added_later
+    assert second_page["next_cursor"] is None
+
+    assert logged.get("/api/photos", params={"cursor": "invalid"}).status_code == 400
+    assert (
+        logged.get(
+            "/api/photos",
+            params={"cursor": first_page["next_cursor"], "offset": 1},
+        ).status_code
+        == 400
+    )
 
 
 def test_heic_support_and_exif_orientation(logged):

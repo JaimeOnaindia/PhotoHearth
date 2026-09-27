@@ -13,7 +13,10 @@ export type Stats = {
   photos: number; favorites: number; trash: number; albums: number; original_bytes: number;
   disk_total: number; disk_free: number; max_upload: number;
 };
-export type PhotoPage = { items: Photo[]; total: number };
+export type PhotoPage = { items: Photo[]; total: number; next_cursor?: string | null };
+export type PhotoCursorPage = {
+  items: Photo[]; total: number | null; next_cursor: string | null;
+};
 export type View = 'library' | 'favorites' | 'albums' | 'trash' | 'settings' | 'places';
 export type ImportStatus = 'queued' | 'running' | 'paused' | 'completed' | 'completed_errors' | 'canceled';
 export type ImportJob = {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage, type Album, type PhotoPage, type Stats, type View } from './api';
+import { api, errorMessage, type Album, type PhotoCursorPage, type PhotoPage, type Stats, type View } from './api';
 
 export function useLibrary(view: View, query: string, album: string | null, revision: number) {
   const [page, setPage] = useState<PhotoPage>({ items: [], total: 0 });
@@ -28,13 +28,21 @@ export function useLibrary(view: View, query: string, album: string | null, revi
     return () => controller.abort();
   }, [path, revision]);
   const loadMore = useCallback(async () => {
+    if (!page.next_cursor || moreBusy) return;
     const current = generation.current;
     setMoreBusy(true);
     try {
-      const next = await api<PhotoPage>(`${path}&offset=${page.items.length}`);
-      if (current === generation.current) setPage(previous => ({ ...next, items: [...previous.items, ...next.items] }));
+      const cursor = encodeURIComponent(page.next_cursor);
+      const next = await api<PhotoCursorPage>(`${path}&cursor=${cursor}&include_total=false`);
+      if (current === generation.current) {
+        setPage(previous => ({
+          items: [...previous.items, ...next.items],
+          total: previous.total,
+          next_cursor: next.next_cursor,
+        }));
+      }
     } catch (error) { if (current === generation.current) setError(errorMessage(error)); }
     finally { if (current === generation.current) setMoreBusy(false); }
-  }, [path, page.items.length]);
+  }, [moreBusy, page.next_cursor, path]);
   return { ...page, albums, stats, busy, moreBusy, error, loadMore };
 }
