@@ -22,13 +22,24 @@ def database_url_from_env() -> str | None:
     ).render_as_string(hide_password=False)
 
 
+def import_dir_from_env() -> Path | None:
+    value = os.getenv("PHOTOHEARTH_IMPORT_DIR")
+    return Path(value).resolve() if value else None
+
+
+def data_dir_from_env() -> Path:
+    if value := os.getenv("PHOTOHEARTH_DATA"):
+        return Path(value).resolve()
+    user_data = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return (user_data / "photohearth").resolve()
+
+
 @dataclass(frozen=True)
 class Settings:
-    data_dir: Path = field(
-        default_factory=lambda: Path(os.getenv("PHOTOHEARTH_DATA", "data")).resolve()
-    )
+    data_dir: Path = field(default_factory=data_dir_from_env)
     web_dir: Path = field(default_factory=lambda: Path("dist").resolve())
     database_url: str | None = field(default_factory=database_url_from_env, repr=False)
+    import_dir: Path | None = field(default_factory=import_dir_from_env)
     origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(
             x.strip().rstrip("/")
@@ -42,6 +53,7 @@ class Settings:
     max_upload: int = 40 * 1024 * 1024
     session_seconds: int = 7 * 24 * 60 * 60
     upload_concurrency: int = 2
+    import_max_files: int = 100_000
 
     @property
     def database(self) -> Path:

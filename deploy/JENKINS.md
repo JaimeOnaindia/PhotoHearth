@@ -38,14 +38,3 @@ Los navegadores del agente se fijan a la versión de Playwright del lockfile.
 Al actualizar Playwright, actualizar también `deploy/jenkins/agent.Dockerfile`
 y reconstruir el agente. Revisar periódicamente versiones e informes de
 seguridad de Jenkins, plugins y dependencias; las imágenes no se autoactualizan.
-
-## Estado inicial (25 de septiembre de 2026)
-
-Código publicado en `main` con autorización del propietario, sin contraseñas,
-claves privadas ni fotos. La ejecución #1 del trabajo PhotoHearth descargó el
-commit `a313ffe` desde GitHub y terminó con `SUCCESS` en unos 55 segundos:
-once pruebas de backend y cuatro de navegador, sin fallos ni pruebas omitidas.
-Jenkins publicó los resultados JUnit y `photohearth-source.tar.gz`.
-
-La consulta automática de cambios queda activada cada cinco minutos. Esto
-ejecuta las comprobaciones y genera el artefacto; no modifica producción.

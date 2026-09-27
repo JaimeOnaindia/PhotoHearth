@@ -34,7 +34,9 @@ PHOTOHEARTH_SECURE_COOKIE=false PHOTOHEARTH_ORIGINS=http://127.0.0.1:8000 \
 ```
 
 La excepción HTTP anterior es solo para desarrollo en loopback. En el servidor
-se usa HTTPS y cookies Secure.
+se usa HTTPS y cookies Secure. En desarrollo, los datos se guardan fuera del
+repositorio en `$XDG_DATA_HOME/photohearth` (normalmente
+`~/.local/share/photohearth`). Se puede cambiar con `PHOTOHEARTH_DATA`.
 
 ```bash
 .venv/bin/ruff check backend tests migrations
