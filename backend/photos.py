@@ -47,6 +47,7 @@ def photos(
     view: Literal["library", "favorites", "trash"] = "library",
     album: str | None = None,
     place: str | None = Query(None, pattern=r"^\d{1,5}:\d{1,5}$"),
+    location: Literal["any", "located", "missing"] = "any",
     limit: int = Query(60, ge=1, le=120),
     offset: int = Query(0, ge=0),
     cursor: str | None = Query(None, max_length=512),
@@ -60,6 +61,10 @@ def photos(
     if place:
         lat_cell, lon_cell = map(int, place.split(":"))
         conditions.extend([latitude_cell() == lat_cell, longitude_cell() == lon_cell])
+    if location == "located":
+        conditions.append(Photo.latitude.is_not(None))
+    elif location == "missing":
+        conditions.append(Photo.latitude.is_(None))
     if q.strip():
         conditions.append(
             or_(
@@ -149,20 +154,42 @@ class PhotoUpdate(BaseModel):
     location: LocationInput | None = None
 
 
+class PhotoBatchUpdate(PhotoUpdate):
+    ids: list[str] = Field(min_length=1, max_length=500)
+
+
+def apply_update(row: Photo, body: PhotoUpdate) -> None:
+    if body.favorite is not None:
+        row.favorite = body.favorite
+    if body.trashed is not None:
+        row.deleted_at = now_iso() if body.trashed else None
+    if "location" in body.model_fields_set:
+        row.latitude = body.location.latitude if body.location else None
+        row.longitude = body.location.longitude if body.location else None
+        row.location_name = (body.location.name.strip() or None) if body.location else None
+
+
+@router.patch("/batch")
+def update_batch(body: PhotoBatchUpdate, request: Request):
+    if not body.model_fields_set.intersection({"favorite", "trashed", "location"}):
+        raise HTTPException(422, "Indica al menos un cambio para las fotos.")
+    identifiers = list(dict.fromkeys(body.ids))
+    with connect(request.app.state.settings) as db:
+        rows = db.scalars(select(Photo).where(Photo.id.in_(identifiers))).all()
+        if len(rows) != len(identifiers):
+            raise HTTPException(404, "No encontramos todas las fotos seleccionadas.")
+        for row in rows:
+            apply_update(row, body)
+    return {"updated": len(rows)}
+
+
 @router.patch("/{photo_id}")
 def update(photo_id: str, body: PhotoUpdate, request: Request):
     with connect(request.app.state.settings) as db:
         row = db.get(Photo, photo_id)
         if not row:
             raise HTTPException(404, "No encontramos esta foto.")
-        if body.favorite is not None:
-            row.favorite = body.favorite
-        if body.trashed is not None:
-            row.deleted_at = now_iso() if body.trashed else None
-        if "location" in body.model_fields_set:
-            row.latitude = body.location.latitude if body.location else None
-            row.longitude = body.location.longitude if body.location else None
-            row.location_name = (body.location.name.strip() or None) if body.location else None
+        apply_update(row, body)
         return photo_json(row)
 
 

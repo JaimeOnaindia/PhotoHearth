@@ -74,6 +74,44 @@ def test_location_validation_and_grouping(logged):
     assert logged.get("/api/photos?q=%").json()["total"] == 0
 
 
+def test_location_filters_and_transactional_batch_updates(logged):
+    first = upload(logged, "primera.jpg", "coral")["photo"]["id"]
+    second = upload(logged, "segunda.jpg", "blue")["photo"]["id"]
+
+    assert logged.get("/api/photos", params={"location": "missing"}).json()["total"] == 2
+    assert logged.get("/api/photos", params={"location": "located"}).json()["total"] == 0
+
+    response = logged.patch(
+        "/api/photos/batch",
+        json={
+            "ids": [first, second, first],
+            "location": {"latitude": 43.263, "longitude": -2.935, "name": " Bilbao "},
+        },
+    )
+    assert response.status_code == 200 and response.json() == {"updated": 2}
+    assert logged.get("/api/photos", params={"location": "missing"}).json()["total"] == 0
+    assert logged.get("/api/photos", params={"location": "located"}).json()["total"] == 2
+    places = logged.get("/api/places").json()
+    assert places["total"] == 1 and places["items"][0]["name"] == "Bilbao"
+
+    missing_id = "0" * 32
+    failed = logged.patch(
+        "/api/photos/batch",
+        json={"ids": [first, missing_id], "favorite": True},
+    )
+    assert failed.status_code == 404
+    assert logged.get("/api/photos?view=favorites").json()["total"] == 0
+    assert logged.patch("/api/photos/batch", json={"ids": [first]}).status_code == 422
+    assert logged.patch("/api/photos/batch", json={"ids": []}).status_code == 422
+
+    favorite = logged.patch(
+        "/api/photos/batch",
+        json={"ids": [first, second], "favorite": True},
+    )
+    assert favorite.status_code == 200 and favorite.json() == {"updated": 2}
+    assert logged.get("/api/photos?view=favorites").json()["total"] == 2
+
+
 def test_concurrent_uploads_are_deduplicated(logged):
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: upload(logged), range(4)))
