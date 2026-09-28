@@ -46,7 +46,7 @@ printf 'CI #%s, commit %s, accion %s\\n' "$VERIFIED_BUILD" "$sha" "$DEPLOY_ACTIO
     printf '%s %s %s\\n' "$DEPLOY_ACTION" "$sha" "$digest"
     cat photohearth-source.tar.gz
 } | ssh -T -i "$DEPLOY_KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \\
-    -o UserKnownHostsFile="$WORKSPACE/deploy/jenkins/known_hosts" \\
+    -o UserKnownHostsFile=deploy/jenkins/known_hosts \\
     -o ConnectTimeout=10 james@192.168.1.140
 '''
                 }
