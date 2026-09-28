@@ -53,6 +53,17 @@ export function Places({ revision, csrf, onOpen }: {
   const selected = data?.items.find(place => place.id === selectedId);
   const photoTotal = data ? data.located + data.missing : 0;
   const coverage = photoTotal ? Math.round((data!.located / photoTotal) * 100) : 0;
+  const groups = new Map<string, { key: string; name: string; date: string; ids: string[] }>();
+  for (const photo of missingPhotos) {
+    for (const album of photo.albums ?? []) {
+      const date = photo.taken_at.slice(0, 10);
+      const key = `${album.id}:${date}`;
+      if (!groups.has(key)) groups.set(key, { key, name: album.name, date, ids: [] });
+      groups.get(key)!.ids.push(photo.id);
+    }
+  }
+  const suggestedGroups = [...groups.values()].filter(group => group.ids.length > 1)
+    .sort((left, right) => right.ids.length - left.ids.length).slice(0, 6);
 
   function toggleOrganizer() {
     setOrganizing(value => !value); setSelectedId(null); setNotice('');
@@ -104,6 +115,7 @@ export function Places({ revision, csrf, onOpen }: {
     {data.missing > 0 && <div className={`places-missing ${organizing ? 'active' : ''}`}><span className="missing-icon"><Images size={23} /></span><div><strong>{data.missing} {data.missing === 1 ? 'foto necesita' : 'fotos necesitan'} un lugar</strong><p>Algunas aplicaciones eliminan el GPS al compartir. Puedes situarlas juntas sin modificar los originales.</p></div><button className="button primary" onClick={toggleOrganizer}>{organizing ? 'Cerrar organizador' : 'Organizar fotos sin ubicación'}</button></div>}
     {organizing && <section className="location-workbench" aria-label="Fotos sin ubicación"><div className="workbench-heading"><span>1</span><div><strong>Elige los recuerdos del mismo lugar</strong><p>Puedes organizar hasta 120 fotos cada vez.</p></div><button className="button subtle" disabled={!missingPhotos.length} onClick={toggleAllMissing}>{selectedMissing.size === missingPhotos.length && missingPhotos.length ? 'Quitar selección' : 'Seleccionar todas'}</button></div>
       {missingError && <div className="workbench-error" role="alert"><p>{missingError}</p><button className="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div>}
+      {!missingBusy && suggestedGroups.length > 0 && <div className="missing-groups"><p>Posibles grupos del mismo álbum y día. Comprueba las fotos antes de situarlas.</p><div>{suggestedGroups.map(group => <button className="button subtle" key={group.key} onClick={() => setSelectedMissing(new Set(group.ids))}>Seleccionar {group.ids.length} de {group.name} · {dateLabel(group.date)}</button>)}</div></div>}
       {missingBusy ? <p role="status">Buscando fotos sin ubicación…</p> : <div className="missing-photo-strip">{missingPhotos.map(photo => <button key={photo.id} className="missing-photo" aria-label={`Seleccionar ${photo.filename}`} aria-pressed={selectedMissing.has(photo.id)} onClick={() => toggleMissing(photo.id)}><img src={fileUrl(photo.id)} alt="" loading="lazy" /><span className="missing-photo-check"><Check size={14} /></span><small>{photo.filename}</small></button>)}</div>}
       {missingTotal > missingPhotos.length && <p className="workbench-limit">Mostrando las primeras {missingPhotos.length} de {missingTotal}. Guarda este grupo para continuar con las siguientes.</p>}
     </section>}

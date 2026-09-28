@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 from sqlalchemy import update
 
 from backend.auth import COOKIE, hasher
@@ -38,15 +38,15 @@ def logged(client):
     return client
 
 
-def image_bytes(color="coral", format="JPEG"):
+def image_bytes(color="coral", format="JPEG", size=(80, 60)):
     buffer = io.BytesIO()
-    Image.new("RGB", (80, 60), color).save(buffer, format=format)
+    Image.new("RGB", size, color).save(buffer, format=format)
     return buffer.getvalue()
 
 
-def upload(client, filename="vacaciones.jpg", color="coral"):
+def upload(client, filename="vacaciones.jpg", color="coral", size=(80, 60)):
     response = client.post(
-        "/api/photos/upload", params={"filename": filename}, content=image_bytes(color)
+        "/api/photos/upload", params={"filename": filename}, content=image_bytes(color, size=size)
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -241,6 +241,89 @@ def test_albums_search_pagination_and_trash_counts(logged):
     logged.delete(f"/api/albums/{album}/photos/{first}")
     assert logged.get(f"/api/photos?album={album}").json()["total"] == 0
     assert logged.get("/api/photos").json()["total"] == 2
+
+
+def test_add_many_photos_to_album_is_atomic_and_idempotent(logged):
+    first = upload(logged, color="coral")["photo"]["id"]
+    second = upload(logged, color="blue")["photo"]["id"]
+    deleted = upload(logged, color="green")["photo"]["id"]
+    logged.patch(f"/api/photos/{deleted}", json={"trashed": True})
+    album = logged.post("/api/albums", json={"name": "Portugal"}).json()["id"]
+    path = f"/api/albums/{album}/photos"
+    assert logged.post(path, json={"ids": []}).status_code == 422
+    assert logged.post(path, json={"ids": [first, deleted]}).status_code == 404
+    assert logged.get(f"/api/photos?album={album}").json()["total"] == 0
+    assert logged.post(path, json={"ids": [first, second, first]}).status_code == 200
+    assert logged.post(path, json={"ids": [first, second]}).status_code == 200
+    assert logged.get(f"/api/photos?album={album}").json()["total"] == 2
+
+
+def test_album_cover_prefers_photos_that_fit_the_card(logged):
+    album = logged.post("/api/albums", json={"name": "Portugal"}).json()["id"]
+    fitting = upload(logged, "fitting.jpg", "coral", size=(130, 100))["photo"]["id"]
+    square = upload(logged, "square.jpg", "blue", size=(100, 100))["photo"]["id"]
+    portrait = upload(logged, "portrait.jpg", "green", size=(80, 140))["photo"]["id"]
+    for photo_id in (fitting, square, portrait):
+        assert logged.put(f"/api/albums/{album}/photos/{photo_id}").status_code == 200
+
+    assert logged.get("/api/albums").json()[0]["cover"] == fitting
+    logged.patch(f"/api/photos/{fitting}", json={"trashed": True})
+    assert logged.get("/api/albums").json()[0]["cover"] == square
+    logged.delete(f"/api/albums/{album}/photos/{square}")
+    assert logged.get("/api/albums").json()[0]["cover"] == portrait
+
+
+def test_album_cover_prefers_detail_near_the_center(logged):
+    album = logged.post("/api/albums", json={"name": "Portugal"}).json()["id"]
+    photo_ids = []
+    for name, box in (
+        ("center.jpg", (55, 35, 75, 65)),
+        ("bottom.jpg", (55, 68, 75, 98)),
+    ):
+        image = Image.new("RGB", (130, 100), "white")
+        ImageDraw.Draw(image).rectangle(box, fill="black")
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG")
+        response = logged.post(
+            "/api/photos/upload", params={"filename": name}, content=buffer.getvalue()
+        )
+        assert response.status_code == 201
+        photo_id = response.json()["photo"]["id"]
+        photo_ids.append(photo_id)
+        assert logged.put(f"/api/albums/{album}/photos/{photo_id}").status_code == 200
+
+    assert logged.get("/api/albums").json()[0]["cover"] == photo_ids[0]
+
+
+def test_manual_album_cover_and_focal_position(logged):
+    album = logged.post("/api/albums", json={"name": "Portugal"}).json()["id"]
+    automatic = upload(logged, "landscape.jpg", "coral", size=(130, 100))["photo"]["id"]
+    chosen = upload(logged, "portrait.jpg", "blue", size=(80, 140))["photo"]["id"]
+    for photo_id in (automatic, chosen):
+        logged.put(f"/api/albums/{album}/photos/{photo_id}")
+    path = f"/api/albums/{album}/cover"
+    assert logged.patch(path, json={"photo_id": "f" * 32}).status_code == 404
+    assert logged.patch(path, json={"photo_id": chosen, "x": -1}).status_code == 422
+    assert logged.patch(path, json={"photo_id": chosen, "x": 25, "y": 80}).status_code == 200
+    row = logged.get("/api/albums").json()[0]
+    assert (row["cover"], row["cover_photo_id"], row["cover_x"], row["cover_y"]) == (
+        chosen, chosen, 25, 80,
+    )
+
+    logged.patch(f"/api/photos/{chosen}", json={"trashed": True})
+    assert logged.get("/api/albums").json()[0]["cover"] == automatic
+    logged.patch(f"/api/photos/{chosen}", json={"trashed": False})
+    assert logged.get("/api/albums").json()[0]["cover"] == chosen
+    logged.delete(f"/api/albums/{album}/photos/{chosen}")
+    assert logged.get("/api/albums").json()[0]["cover"] == automatic
+    logged.put(f"/api/albums/{album}/photos/{chosen}")
+    assert logged.get("/api/albums").json()[0]["cover"] == automatic
+    logged.patch(path, json={"photo_id": chosen})
+    assert logged.patch(path, json={"photo_id": None}).status_code == 200
+    row = logged.get("/api/albums").json()[0]
+    assert (row["cover"], row["cover_photo_id"], row["cover_x"], row["cover_y"]) == (
+        automatic, None, 50, 50,
+    )
 
 
 def test_cursor_pagination_is_stable_and_can_skip_recount(logged):

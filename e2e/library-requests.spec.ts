@@ -51,4 +51,12 @@ test('search and metadata-only sections avoid redundant library requests', async
   expect(photoQueries).toEqual(['', 'Portugal']);
   expect(albumRequests).toBe(1);
   expect(statsRequests).toBe(1);
+
+  await page.evaluate(() => {
+    const channel = new BroadcastChannel('photohearth-library');
+    channel.postMessage('changed');
+    channel.close();
+  });
+  await expect.poll(() => albumRequests).toBe(2);
+  await expect.poll(() => statsRequests).toBe(2);
 });

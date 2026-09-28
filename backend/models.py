@@ -111,6 +111,20 @@ class Album(Base):
     created_at: Mapped[str]
 
 
+class AlbumCover(Base):
+    __tablename__ = "album_covers"
+    __table_args__ = (
+        CheckConstraint("x BETWEEN 0 AND 100", name="valid_x"),
+        CheckConstraint("y BETWEEN 0 AND 100", name="valid_y"),
+    )
+    album_id: Mapped[str] = mapped_column(
+        ForeignKey("albums.id", ondelete="CASCADE"), primary_key=True
+    )
+    photo_id: Mapped[str] = mapped_column(ForeignKey("photos.id", ondelete="CASCADE"))
+    x: Mapped[int] = mapped_column(default=50, server_default="50")
+    y: Mapped[int] = mapped_column(default=50, server_default="50")
+
+
 class AlbumPhoto(Base):
     __tablename__ = "album_photos"
     album_id: Mapped[str] = mapped_column(

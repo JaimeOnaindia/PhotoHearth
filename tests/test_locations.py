@@ -16,6 +16,24 @@ def test_places_are_private(client):
     assert client.get("/api/places").status_code == 401
 
 
+def test_missing_photos_include_album_memberships_for_grouping(logged):
+    first = upload(logged, color="coral")["photo"]["id"]
+    second = upload(logged, color="blue")["photo"]["id"]
+    other = upload(logged, color="green")["photo"]["id"]
+    album = logged.post("/api/albums", json={"name": "Portugal"}).json()["id"]
+    for photo_id in (first, second):
+        assert logged.put(f"/api/albums/{album}/photos/{photo_id}").status_code == 200
+
+    items = logged.get("/api/photos", params={"location": "missing"}).json()["items"]
+    memberships = {item["id"]: item["albums"] for item in items}
+    assert memberships == {
+        first: [{"id": album, "name": "Portugal"}],
+        second: [{"id": album, "name": "Portugal"}],
+        other: [],
+    }
+    assert "albums" not in logged.get("/api/photos").json()["items"][0]
+
+
 def test_places_use_nearby_locality_but_keep_manual_names(logged):
     with connect(logged.app.state.settings) as db:
         db.add(Country(code="ES", name="Spain"))

@@ -3,12 +3,16 @@ export type Photo = {
   id: string; filename: string; bytes: number; width: number; height: number;
   taken_at: string; uploaded_at: string; favorite: boolean; deleted_at: string | null;
   latitude: number | null; longitude: number | null; location_name: string | null;
+  albums?: { id: string; name: string }[];
 };
 export type LocationInput = { latitude: number; longitude: number; name: string };
 export type PhotoPatch = { favorite?: boolean; trashed?: boolean; location?: LocationInput | null };
 export type Place = { id: string; latitude: number; longitude: number; count: number; cover: string; last_visit: string; name: string | null; nearby_name: string | null };
 export type PlacePage = { items: Place[]; total: number; located: number; missing: number };
-export type Album = { id: string; name: string; created_at: string; count: number; cover: string | null };
+export type Album = {
+  id: string; name: string; created_at: string; count: number; cover: string | null;
+  cover_photo_id: string | null; cover_x: number; cover_y: number;
+};
 export type Stats = {
   photos: number; favorites: number; trash: number; albums: number; original_bytes: number;
   disk_total: number; disk_free: number; max_upload: number;

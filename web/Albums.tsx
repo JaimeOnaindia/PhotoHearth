@@ -5,7 +5,7 @@ import { Modal } from './ui';
 
 export function Albums({ albums, onOpen, onCreate }: { albums: Album[]; onOpen: (id: string) => void; onCreate: () => void }) {
   return <div className="album-grid">{albums.map(album => <button className="album-card" key={album.id} onClick={() => onOpen(album.id)}>
-    <div className="album-cover">{album.cover ? <img src={fileUrl(album.cover, 'preview')} alt="" loading="lazy" /> : <FolderHeart size={46} strokeWidth={1} />}</div>
+    <div className="album-cover">{album.cover ? <img src={fileUrl(album.cover, 'preview')} alt="" loading="lazy" style={{ objectPosition: `${album.cover_x}% ${album.cover_y}%` }} /> : <FolderHeart size={46} strokeWidth={1} />}</div>
     <h2>{album.name}</h2><p>{album.count} {album.count === 1 ? 'foto' : 'fotos'}</p>
   </button>)}<button className="new-album" onClick={onCreate}><span><Plus size={28} /></span><h2>Una nueva historia</h2><p>Crear un álbum</p></button></div>;
 }
@@ -20,7 +20,11 @@ export function AlbumModal({ albums, photoIds, csrf, onClose, onDone }: {
     setBusy(true); setError('');
     try {
       const albumId = id ?? (await api<Album>('/albums', { method: 'POST', body: JSON.stringify({ name: name.trim() }) }, csrf)).id;
-      for (const photo of photoIds) await api(`/albums/${albumId}/photos/${photo}`, { method: 'PUT' }, csrf);
+      for (let offset = 0; offset < photoIds.length; offset += 500) {
+        await api(`/albums/${albumId}/photos`, {
+          method: 'POST', body: JSON.stringify({ ids: photoIds.slice(offset, offset + 500) }),
+        }, csrf);
+      }
       onDone(albumId);
     } catch (error) { setError(errorMessage(error)); }
     finally { setBusy(false); }

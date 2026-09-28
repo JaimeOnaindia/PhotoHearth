@@ -11,8 +11,6 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
 }) {
   const element = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const markerPhotos = useRef<HTMLImageElement[]>([]);
-  const tilesReady = useRef(false);
   const [tileStatus, setTileStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
     if (!element.current) return;
@@ -35,38 +33,24 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
   }, [places, selected, enabled]);
   useEffect(() => {
     if (!map.current || !enabled) return;
-    tilesReady.current = false;
     setTileStatus('loading');
     let loaded = false;
     const showTile = () => { loaded = true; setTileStatus('ready'); };
-    const finishTiles = () => {
-      tilesReady.current = true;
-      for (const photo of markerPhotos.current) {
-        if (photo.dataset.src) {
-          photo.src = photo.dataset.src;
-          delete photo.dataset.src;
-        }
-      }
-      if (!loaded) setTileStatus('error');
-    };
+    const finishTiles = () => { if (!loaded) setTileStatus('error'); };
     const layer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
       maxZoom: 19, referrerPolicy: 'origin',
     }).on('tileload', showTile).on('load', finishTiles).addTo(map.current);
-    return () => { layer.off('tileload', showTile).off('load', finishTiles).remove(); tilesReady.current = false; };
+    return () => { layer.off('tileload', showTile).off('load', finishTiles).remove(); };
   }, [enabled]);
   useEffect(() => {
     if (!map.current || !enabled) return;
     const markers = L.featureGroup().addTo(map.current);
-    const photos: HTMLImageElement[] = [];
-    markerPhotos.current = photos;
     for (const place of places) {
       const content = document.createElement('div');
       content.className = 'memory-pin';
       const photo = document.createElement('img');
-      const src = fileUrl(place.cover);
-      if (tilesReady.current) photo.src = src;
-      else { photo.dataset.src = src; photos.push(photo); }
+      photo.src = fileUrl(place.cover);
       photo.alt = ''; photo.loading = 'lazy';
       const count = document.createElement('span');
       count.textContent = String(place.count);
@@ -80,7 +64,7 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
         else onSelect(place.id);
       }).addTo(markers);
     }
-    return () => { markers.remove(); markerPhotos.current = []; };
+    return () => { markers.remove(); };
   }, [places, enabled, onSelect, onPick, picking]);
   useEffect(() => {
     if (!map.current || !onPick) return;

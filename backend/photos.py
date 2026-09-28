@@ -15,7 +15,7 @@ from sqlalchemy import and_, func, or_, select
 from backend.auth import session
 from backend.db import connect
 from backend.media import ingest, now_iso, photo_json
-from backend.models import AlbumPhoto, Photo
+from backend.models import Album, AlbumPhoto, Photo
 from backend.places import latitude_cell, longitude_cell
 
 router = APIRouter(prefix="/api/photos", dependencies=[Depends(session)], tags=["photos"])
@@ -100,11 +100,25 @@ def photos(
             .limit(limit + 1)
             .offset(offset)
         ).all()
-    has_more = len(rows) > limit
-    rows = rows[:limit]
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        memberships: dict[str, list[dict[str, str]]] = {}
+        if location == "missing" and rows:
+            links = db.execute(
+                select(AlbumPhoto.photo_id, Album.id, Album.name)
+                .join(Album, Album.id == AlbumPhoto.album_id)
+                .where(AlbumPhoto.photo_id.in_([row.id for row in rows]))
+                .order_by(Album.name, Album.id)
+            ).all()
+            for photo_id, album_id, album_name in links:
+                memberships.setdefault(photo_id, []).append({"id": album_id, "name": album_name})
     next_cursor = encode_cursor(rows[-1]) if has_more else None
+    items = [photo_json(row) for row in rows]
+    if location == "missing":
+        for item in items:
+            item["albums"] = memberships.get(item["id"], [])
     return {
-        "items": [photo_json(row) for row in rows],
+        "items": items,
         "total": total,
         "next_cursor": next_cursor,
     }

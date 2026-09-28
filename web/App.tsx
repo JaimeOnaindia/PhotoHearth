@@ -36,7 +36,11 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const refresh = useCallback(() => setRevision(v => v + 1), []);
+  const libraryChannel = useRef<BroadcastChannel | null>(null);
+  const refresh = useCallback(() => {
+    setRevision(v => v + 1);
+    libraryChannel.current?.postMessage('changed');
+  }, []);
   const library = useLibrary(view, search, albumId, revision);
   const upload = useUpload(user.csrf, refresh);
   const album = library.albums.find(a => a.id === albumId);
@@ -44,6 +48,18 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   const focusIndex = view === 'places' ? -1 : library.items.findIndex(p => p.id === focused?.id);
 
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 250); return () => clearTimeout(timer); }, [query]);
+  useEffect(() => {
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('photohearth-library');
+    libraryChannel.current = channel;
+    if (channel) channel.onmessage = event => { if (event.data === 'changed') setRevision(v => v + 1); };
+    const onVisible = () => { if (!document.hidden) setRevision(v => v + 1); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      libraryChannel.current = null;
+      channel?.close();
+    };
+  }, []);
   function navigate(next: View, id: string | null = null) {
     setView(next); setAlbumId(id); setQuery(''); setSearch(''); setSelected(new Set()); setNotice('');
   }
@@ -52,9 +68,15 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
   async function change(ids: string[], patch: PhotoPatch): Promise<boolean> {
     setActionBusy(true); setNotice('');
     try {
-      for (const id of ids) {
-        const updated = await api<Photo>(`/photos/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, user.csrf);
-        if (focused?.id === id) setFocused(patch.trashed !== undefined ? null : updated);
+      if (ids.length === 1) {
+        const updated = await api<Photo>(`/photos/${ids[0]}`, { method: 'PATCH', body: JSON.stringify(patch) }, user.csrf);
+        if (focused?.id === ids[0]) setFocused(patch.trashed !== undefined ? null : updated);
+      } else {
+        for (let offset = 0; offset < ids.length; offset += 500) {
+          await api('/photos/batch', {
+            method: 'PATCH', body: JSON.stringify({ ids: ids.slice(offset, offset + 500), ...patch }),
+          }, user.csrf);
+        }
       }
       setSelected(new Set());
       setNotice('location' in patch ? 'Ubicación actualizada.' : patch.trashed === true ? 'Fotos movidas a la papelera. Puedes restaurarlas cuando quieras.' : patch.trashed === false ? 'Fotos de vuelta en tu biblioteca.' : 'Favoritos actualizados.');
@@ -67,6 +89,19 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
     setActionBusy(true);
     try { await api(`/albums/${albumId}/photos/${focused.id}`, { method: 'DELETE' }, user.csrf); setFocused(null); refresh(); }
     catch (error) { setNotice(errorMessage(error)); }
+    finally { setActionBusy(false); }
+  }
+  async function changeCover(photoId: string | null, x = 50, y = 50): Promise<boolean> {
+    if (!albumId) return false;
+    setActionBusy(true); setNotice('');
+    try {
+      await api(`/albums/${albumId}/cover`, {
+        method: 'PATCH', body: JSON.stringify({ photo_id: photoId, x, y }),
+      }, user.csrf);
+      setNotice(photoId ? 'Portada actualizada.' : 'Portada automática restaurada.');
+      refresh();
+      return true;
+    } catch (error) { setNotice(errorMessage(error)); return false; }
     finally { setActionBusy(false); }
   }
   async function logout() {
@@ -110,7 +145,7 @@ export function App({ user, onLogout }: { user: User; onLogout: () => void }) {
         <><Gallery photos={library.items} selected={selected} onSelect={toggle} onOpen={photo => { setFocused(photo); setNotice(''); }} compact={compact} />{library.items.length < library.total && <div className="load-more"><button className="button" disabled={library.moreBusy} onClick={() => void library.loadMore()}>{library.moreBusy ? 'Cargando…' : 'Ver más recuerdos'}</button><small>{library.items.length} de {library.total} fotos</small></div>}</>}
       <footer className="library-footer"><span><Check size={13} /> Originales conservados</span><span>Un poquito de vida, bien guardada.</span></footer>
     </main></div>
-    {focused && <Lightbox key={focused.id} photo={focused} busy={actionBusy} notice={notice} previous={focusIndex > 0 ? () => setFocused(library.items[focusIndex - 1]) : undefined} next={focusIndex >= 0 && focusIndex < library.items.length - 1 ? () => setFocused(library.items[focusIndex + 1]) : undefined} onClose={() => setFocused(null)} onUpdate={patch => change([focused.id], patch)} onAlbum={() => { setAlbumPhotos([focused.id]); setFocused(null); }} onRemove={albumId ? () => void removeFromAlbum() : undefined} />}
+    {focused && <Lightbox key={focused.id} photo={focused} busy={actionBusy} notice={notice} previous={focusIndex > 0 ? () => setFocused(library.items[focusIndex - 1]) : undefined} next={focusIndex >= 0 && focusIndex < library.items.length - 1 ? () => setFocused(library.items[focusIndex + 1]) : undefined} onClose={() => setFocused(null)} onUpdate={patch => change([focused.id], patch)} onAlbum={() => { setAlbumPhotos([focused.id]); setFocused(null); }} onRemove={albumId ? () => void removeFromAlbum() : undefined} onCover={albumId ? (x, y) => changeCover(focused.id, x, y) : undefined} onCoverReset={album?.cover_photo_id ? () => changeCover(null) : undefined} coverPosition={album?.cover_photo_id === focused.id ? { x: album.cover_x, y: album.cover_y } : undefined} />}
     {albumPhotos !== null && <AlbumModal albums={library.albums} photoIds={albumPhotos} csrf={user.csrf} onClose={() => { setAlbumPhotos(null); refresh(); }} onDone={id => { setAlbumPhotos(null); setSelected(new Set()); navigate('albums', id); refresh(); }} />}
     {upload.state && <UploadPanel state={upload.state} onCancel={upload.cancel} onDismiss={upload.dismiss} onRetry={files => void upload.upload(files, upload.state?.albumId)} />}
   </div>;
