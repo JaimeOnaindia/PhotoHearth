@@ -73,6 +73,8 @@ test('private photo library works from upload to restore', async ({ page }, info
   await page.getByRole('dialog').getByLabel('Cerrar', { exact: true }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'Lugares', exact: true }).click();
   await expect(page.locator('.place-card')).toHaveCount(3);
+  expect(await page.locator('.place-card .eyebrow').filter({ hasText: 'LOCALIDAD CERCANA' }).count()).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('.place-card').filter({ hasText: 'Madrid' })).toHaveCount(1);
   expect(tiles).toHaveLength(0);
   await expect(page.locator('.memory-marker')).toHaveCount(0);
   await page.locator('.place-card').first().click();

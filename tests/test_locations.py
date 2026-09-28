@@ -5,6 +5,8 @@ import pytest
 from PIL import Image
 from PIL.TiffImagePlugin import IFDRational
 
+from backend.db import connect
+from backend.models import Country, Locality
 from tests.test_api import client as client
 from tests.test_api import logged as logged
 from tests.test_api import upload
@@ -12,6 +14,43 @@ from tests.test_api import upload
 
 def test_places_are_private(client):
     assert client.get("/api/places").status_code == 401
+
+
+def test_places_use_nearby_locality_but_keep_manual_names(logged):
+    with connect(logged.app.state.settings) as db:
+        db.add(Country(code="ES", name="Spain"))
+        db.flush()
+        db.add_all(
+            [
+                Locality(
+                    geoname_id=1, name="Islantilla", latitude=37.20572, longitude=-7.23742,
+                    feature_code="PPL", country_code="ES", population=1261,
+                ),
+                Locality(
+                    geoname_id=2, name="La Antilla", latitude=37.20709, longitude=-7.20909,
+                    feature_code="PPL", country_code="ES", population=3500,
+                ),
+            ]
+        )
+    first = upload(logged, color="coral")["photo"]["id"]
+    second = upload(logged, color="blue")["photo"]["id"]
+    for photo_id, longitude in ((first, -7.257), (second, -7.216)):
+        assert logged.patch(
+            f"/api/photos/{photo_id}",
+            json={"location": {"latitude": 37.203, "longitude": longitude, "name": ""}},
+        ).status_code == 200
+    places = logged.get("/api/places").json()["items"]
+    assert {place["nearby_name"] for place in places} == {"Islantilla", "La Antilla"}
+    assert all(place["name"] is None for place in places)
+
+    assert logged.patch(
+        f"/api/photos/{first}",
+        json={"location": {"latitude": 37.203, "longitude": -7.257, "name": "Nuestra playa"}},
+    ).status_code == 200
+    places = logged.get("/api/places").json()["items"]
+    named = next(place for place in places if place["longitude"] == pytest.approx(-7.257))
+    assert named["name"] == "Nuestra playa"
+    assert named["nearby_name"] is None
 
 
 def test_exif_location_and_manual_updates(logged):
@@ -71,6 +110,7 @@ def test_location_validation_and_grouping(logged):
         )
     places = logged.get("/api/places").json()
     assert places["total"] == 1 and places["items"][0]["count"] == 2
+    assert places["items"][0]["nearby_name"] is None
     assert logged.get("/api/photos?q=%").json()["total"] == 0
 
 

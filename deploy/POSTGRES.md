@@ -74,11 +74,25 @@ siguen pendientes de elegir destino.
 
 ## Ubicación y privacidad
 
-La sección Lugares agrupa fotos cercanas (celdas de 0,01 grados), no identifica
-ciudades automáticamente. Permite consultar hasta 500 zonas y filtrar sus fotos.
+La sección Lugares agrupa fotos cercanas (celdas de 0,01 grados), permite consultar
+hasta 500 zonas y filtrar sus fotos. Un catálogo local de GeoNames contiene países
+y localidades; se instala tras la migración con:
+
+```bash
+sudo docker compose exec -T app python -m backend.gazetteer
+```
+
+La carga es transaccional y no modifica las fotos. El código incluye la fuente,
+licencia CC BY 4.0 y fecha del catálogo en `backend/resources/geonames-20260928.zip`.
+Si no se ha cargado el catálogo, las tarjetas siguen mostrando coordenadas.
+Para cada zona sin nombre manual se muestra la localidad más cercana hasta 10 km;
+es una aproximación, no una comprobación de límites municipales. Los nombres
+manuales tienen prioridad.
+
 El visor permite añadir, corregir o quitar coordenadas y dar nombre al lugar.
 Cambiar esa información no modifica el EXIF del original descargable.
 
 OpenStreetMap solo recibe solicitudes de mapas tras pulsar «Activar mapa»:
 puede ver la IP y el área visualizada, pero no las fotos. No se usa geocodificación
-externa. Las pruebas del navegador simulan los mapas sin consultar el proveedor.
+externa: la búsqueda de nombres se hace en la base local. Las pruebas del navegador
+simulan los mapas sin consultar el proveedor.

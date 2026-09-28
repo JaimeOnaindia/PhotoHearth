@@ -9,7 +9,8 @@ from PIL.TiffImagePlugin import IFDRational
 
 from backend.auth import hasher
 from backend.config import Settings
-from backend.db import connect, initialize
+from backend.db import connect
+from backend.gazetteer import import_catalog
 from backend.main import create_app
 from backend.models import User
 
@@ -49,7 +50,7 @@ def main():
         settings = Settings(
             data_dir=Path(directory), secure_cookie=False, origins=("http://127.0.0.1:8765",)
         )
-        initialize(settings)
+        import_catalog(settings)
         with connect(settings) as db:
             db.add(
                 User(

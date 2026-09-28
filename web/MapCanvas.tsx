@@ -73,8 +73,8 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
       content.append(photo, count);
       L.marker([place.latitude, place.longitude], {
         icon: L.divIcon({ html: content, className: 'memory-marker', iconSize: [54, 62], iconAnchor: [27, 62] }),
-        title: place.name || `${place.latitude.toFixed(3)}, ${place.longitude.toFixed(3)}`,
-        alt: `Ver lugar: ${place.name || place.id}`, keyboard: true,
+        title: place.name || place.nearby_name || `${place.latitude.toFixed(3)}, ${place.longitude.toFixed(3)}`,
+        alt: `Ver lugar: ${place.name || place.nearby_name || place.id}`, keyboard: true,
       }).on('click', () => {
         if (picking && onPick) onPick(place.latitude, place.longitude);
         else onSelect(place.id);

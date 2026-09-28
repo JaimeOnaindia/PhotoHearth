@@ -1,6 +1,7 @@
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Float,
     ForeignKey,
     Index,
     MetaData,
@@ -74,6 +75,33 @@ class Photo(Base):
 
 Index("photos_timeline", Photo.deleted_at, Photo.taken_at.desc(), Photo.id.desc())
 Index("photos_location", Photo.deleted_at, Photo.latitude, Photo.longitude)
+
+
+class Country(Base):
+    __tablename__ = "countries"
+    code: Mapped[str] = mapped_column(String(2), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+
+
+class Locality(Base):
+    __tablename__ = "localities"
+    __table_args__ = (
+        CheckConstraint("latitude BETWEEN -90 AND 90", name="valid_latitude"),
+        CheckConstraint("longitude BETWEEN -180 AND 180", name="valid_longitude"),
+        CheckConstraint("population >= 0", name="non_negative_population"),
+    )
+    geoname_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    feature_code: Mapped[str] = mapped_column(String(10))
+    country_code: Mapped[str] = mapped_column(ForeignKey("countries.code"))
+    admin1: Mapped[str | None] = mapped_column(String(50))
+    admin2: Mapped[str | None] = mapped_column(String(100))
+    population: Mapped[int] = mapped_column(BigInteger)
+
+
+Index("localities_coordinates", Locality.latitude, Locality.longitude)
 
 
 class Album(Base):

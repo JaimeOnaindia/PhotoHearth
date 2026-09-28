@@ -113,14 +113,14 @@ export function Places({ revision, csrf, onOpen }: {
       {enabled && <span className="map-private-badge"><ShieldCheck size={14} /> Tus fotos se quedan en casa</span>}
       {organizing && enabled && <span className="map-pick-hint"><MousePointer2 size={15} /> Pulsa el punto exacto en el mapa</span>}
     </div>
-    <div className="map-footnote"><span><MapPin size={14} /> Agrupamos fotos cercanas; no representan necesariamente ciudades distintas.</span>{enabled && <button className="button subtle" onClick={() => setEnabled(false)}>Desactivar mapa externo</button>}</div>
+    <div className="map-footnote"><span><MapPin size={14} /> Agrupamos fotos cercanas. Los nombres aproximados proceden de <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> y se buscan en casa.</span>{enabled && <button className="button subtle" onClick={() => setEnabled(false)}>Desactivar mapa externo</button>}</div>
     {organizing && <div className="location-assignment"><span className="assignment-step">2</span><div className="assignment-copy"><strong>Nombra el lugar y guarda el grupo</strong><p>{draft ? `${draft.latitude.toFixed(5)}°, ${draft.longitude.toFixed(5)}°` : 'Todavía no has marcado ningún punto.'}</p></div><label>Nombre del lugar<input value={placeName} maxLength={120} placeholder="Por ejemplo, Bilbao" onChange={event => setPlaceName(event.target.value)} /></label><button className="button primary" disabled={saving || !draft || !selectedMissing.size} onClick={() => void assignLocation()}><LocateFixed size={17} /> {saving ? 'Guardando…' : `Situar ${selectedMissing.size || ''} ${selectedMissing.size === 1 ? 'foto' : 'fotos'}`}</button></div>}
     {selected ? <PlacePhotos key={`${selected.id}:${revision}`} place={selected} onBack={() => setSelectedId(null)} onOpen={onOpen} /> : <>
       <div className="places-list-heading"><h2>Donde hemos estado</h2><span>{data.total} zonas</span></div>
       {!data.items.length && <div className="places-empty"><MapPin size={30} /><h3>El primer punto está por llegar.</h3><p>Sube originales con GPS o usa el organizador para empezar vuestro mapa.</p></div>}
-      <div className="places-grid">{data.items.map((place, index) => <button className="place-card" key={place.id} onClick={() => selectPlace(place.id)}>
+      <div className="places-grid">{data.items.map(place => <button className="place-card" key={place.id} onClick={() => selectPlace(place.id)}>
         <div className="place-cover"><img src={fileUrl(place.cover, 'preview')} alt="" loading="lazy" /><span>{place.count} {place.count === 1 ? 'recuerdo' : 'recuerdos'}</span></div>
-        <div className="place-caption"><span className="eyebrow">LUGAR {String(index + 1).padStart(2, '0')}</span><h3>{place.name || `${place.latitude.toFixed(3)}°, ${place.longitude.toFixed(3)}°`}</h3><p>{dateLabel(place.last_visit)}</p></div>
+        <div className="place-caption"><span className="eyebrow">{place.name ? 'NOMBRE ASIGNADO' : place.nearby_name ? 'LOCALIDAD CERCANA' : 'SIN NOMBRE'}</span><h3>{place.name || place.nearby_name || `${place.latitude.toFixed(3)}°, ${place.longitude.toFixed(3)}°`}</h3><p>{dateLabel(place.last_visit)}</p></div>
       </button>)}</div>
       {data.total > data.items.length && <p>Mostrando las {data.items.length} zonas visitadas más recientemente de {data.total}.</p>}
     </>}
@@ -145,7 +145,7 @@ function PlacePhotos({ place, onBack, onOpen }: { place: Place; onBack: () => vo
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
   }, [place.id, offset, retry]);
-  return <section className="place-photos"><button className="button subtle" onClick={onBack}><ArrowLeft size={16} /> Todos los lugares</button><h2>{place.name || 'Recuerdos de este lugar'}</h2>
+  return <section className="place-photos"><button className="button subtle" onClick={onBack}><ArrowLeft size={16} /> Todos los lugares</button><h2>{place.name || place.nearby_name || 'Recuerdos de este lugar'}</h2>
     {error && <div role="alert"><p>{error}</p><button className="button" onClick={() => setRetry(value => value + 1)}>Reintentar fotos</button></div>}
     <div className="photo-grid">{photos.map(photo => <button key={photo.id} className="photo-card photo-open" aria-label={`Abrir ${photo.filename}`} onClick={() => onOpen(photo)}><img src={fileUrl(photo.id)} alt={photo.filename} loading="lazy" /></button>)}</div>
     {busy ? <p role="status">Cargando recuerdos…</p> : !error && photos.length < total && <button className="button" onClick={() => setOffset(photos.length)}>Ver más recuerdos del lugar</button>}

@@ -6,7 +6,7 @@ export type Photo = {
 };
 export type LocationInput = { latitude: number; longitude: number; name: string };
 export type PhotoPatch = { favorite?: boolean; trashed?: boolean; location?: LocationInput | null };
-export type Place = { id: string; latitude: number; longitude: number; count: number; cover: string; last_visit: string; name: string | null };
+export type Place = { id: string; latitude: number; longitude: number; count: number; cover: string; last_visit: string; name: string | null; nearby_name: string | null };
 export type PlacePage = { items: Place[]; total: number; located: number; missing: number };
 export type Album = { id: string; name: string; created_at: string; count: number; cover: string | null };
 export type Stats = {
