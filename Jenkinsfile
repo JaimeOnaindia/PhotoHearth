@@ -3,6 +3,7 @@ pipeline {
     options {
         skipDefaultCheckout(true)
         disableConcurrentBuilds()
+        copyArtifactPermission('PhotoHearth Deploy')
         timeout(time: 25, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '3'))
     }
@@ -42,7 +43,8 @@ pipeline {
         stage('Version desplegable') {
             steps {
                 sh 'git archive --format=tar.gz --output=photohearth-source.tar.gz HEAD'
-                archiveArtifacts artifacts: 'photohearth-source.tar.gz', fingerprint: true
+                sh 'git rev-parse HEAD > release-sha.txt'
+                archiveArtifacts artifacts: 'photohearth-source.tar.gz,release-sha.txt', fingerprint: true
             }
         }
     }

@@ -13,7 +13,7 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - agent_config:/agent-config
-    secrets: [jenkins_password]
+    secrets: [jenkins_password, deploy_key]
     mem_limit: 1536m
     pids_limit: 256
     security_opt: [no-new-privileges:true]
@@ -70,6 +70,8 @@ volumes:
 secrets:
   jenkins_password:
     file: ./data/deployment/jenkins-password
+  deploy_key:
+    file: ./data/deployment/jenkins-deploy-key
 networks:
   ci_storage:
     internal: true

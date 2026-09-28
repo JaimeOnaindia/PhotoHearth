@@ -29,7 +29,41 @@ Antes de publicar este Jenkinsfile en una instalación antigua, reconstruir
 exclusivamente de pruebas; producción utiliza un secreto diferente.
 
 El artefacto es código listo para construir, no una imagen Docker ya publicada.
-La producción se actualiza manualmente tras hacer una copia de seguridad.
+`PhotoHearth Deploy` es otra pipeline, de ejecución manual. Lanza `PhotoHearth`,
+espera a que pase y despliega exactamente el tar de esa ejecución. El parámetro
+`DRY_RUN` comprueba el paquete y el acceso sin modificar producción. No hay
+despliegue automático al cambiar `main`.
+
+### Acceso limitado para desplegar
+
+La clave de despliegue permite solamente el comando fijo
+`/usr/local/sbin/photohearth-release`; no abre una sesión de shell. Jenkins la
+guarda como credencial `photohearth-deploy` y la entrega al agente únicamente
+durante esa etapa. El agente sigue sin montar el socket Docker. El comando del
+servidor es propiedad de root y `sudoers` autoriza solo ese comando sin contraseña.
+
+En el servidor, desde `/home/james/photohearth`, instalar una vez:
+
+```bash
+ssh-keygen -q -t ed25519 -N '' -f data/deployment/jenkins-deploy-key
+sudo install -o root -g root -m 755 deploy/jenkins/remote_release.sh /usr/local/sbin/photohearth-release
+sudo visudo -cf deploy/jenkins/photohearth-deploy.sudoers
+sudo install -o root -g root -m 440 deploy/jenkins/photohearth-deploy.sudoers /etc/sudoers.d/photohearth-deploy
+awk '{print "restrict,command=\"sudo -n /usr/local/sbin/photohearth-release\" " $0}' data/deployment/jenkins-deploy-key.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+sudo docker compose -f compose.yaml -f compose.ci.yaml build jenkins ci-agent
+sudo docker compose -f compose.yaml -f compose.ci.yaml up -d --no-deps --wait jenkins ci-agent
+```
+
+`deploy/jenkins/known_hosts` fija la clave pública SSH del servidor. Si cambia,
+comprobar la nueva huella antes de actualizar ese archivo. El script recibe el
+SHA y el hash del tar, limita su tamaño, rechaza rutas peligrosas, guarda una
+copia de seguridad antes de aplicar cambios y recrea solo `app`. Verifica salud,
+migración y acceso privado; conserva la copia previa y el paquete si falla.
+Las copias quedan en el SSD del servidor: siguen necesitando una copia externa
+para protegerse de una avería física. Tras modificar `remote_release.sh`, volver
+a instalarlo como root; un despliegue de código no reemplaza ese comando fijo.
+
 No permitir a colaboradores no confiables modificar el Jenkinsfile: los
 trabajos ejecutan código en el agente. La separación en contenedores no
 sustituye un servidor dedicado cuando se incorporan colaboradores externos.

@@ -13,7 +13,8 @@ Treat all live state as dynamic and verify it before acting.
 - `compose.ci.yaml` adds `jenkins`, `ci-agent`, and the disposable `ci-db`.
 - Production PostgreSQL and photo storage use named volumes. The import directory
   is mounted read-only into the application.
-- Jenkins validates and packages code. It does not deploy production.
+- `PhotoHearth` validates and packages code. The separate `PhotoHearth Deploy`
+  job deploys only when started manually.
 
 Do not publish these services on the Internet. Remote access requires a separate
 private VPN design.
@@ -62,6 +63,11 @@ Before release:
 Jenkins runs Ruff, TypeScript, ESLint, pytest against SQLite and PostgreSQL,
 the production web build, and Playwright desktop/mobile flows. Re-read
 `Jenkinsfile` before relying on this list.
+
+For a routine release, the manual `PhotoHearth Deploy` job triggers CI, copies
+that build's artifact and SHA, then uses a restricted SSH key to run the fixed
+server command. Its `DRY_RUN` parameter verifies access and package handling
+without changing production. See `deploy/JENKINS.md` for setup and key rotation.
 
 ## Release preparation
 

@@ -10,7 +10,7 @@ COPY --from=uv /uv /usr/local/bin/uv
 COPY --from=inbound /usr/share/jenkins/agent.jar /opt/agent.jar
 ENV JAVA_HOME=/opt/java/openjdk PATH="/opt/java/openjdk/bin:$PATH" \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client openssh-client \
     && ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && npx --yes playwright@1.63.0 install --with-deps chromium \

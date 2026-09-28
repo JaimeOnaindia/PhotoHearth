@@ -1,0 +1,1 @@
+james ALL=(root) NOPASSWD: /usr/local/sbin/photohearth-release

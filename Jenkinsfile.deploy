@@ -1,0 +1,56 @@
+pipeline {
+    agent none
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+    parameters {
+        booleanParam(name: 'DRY_RUN', defaultValue: false, description: 'Comprobar el paquete y el acceso sin actualizar producción')
+    }
+    stages {
+        stage('CI') {
+            steps {
+                script {
+                    def verified = build job: 'PhotoHearth', wait: true, propagate: true
+                    env.VERIFIED_BUILD = verified.number.toString()
+                }
+            }
+        }
+        stage('Despliegue') {
+            agent { label 'photohearth-ci' }
+            steps {
+                deleteDir()
+                checkout scm
+                copyArtifacts(
+                    projectName: 'PhotoHearth',
+                    selector: specific(env.VERIFIED_BUILD),
+                    filter: 'photohearth-source.tar.gz,release-sha.txt',
+                    fingerprintArtifacts: true
+                )
+                script { env.DEPLOY_ACTION = params.DRY_RUN ? 'check' : 'deploy' }
+                withCredentials([sshUserPrivateKey(credentialsId: 'photohearth-deploy', keyFileVariable: 'DEPLOY_KEY')]) {
+                    sh '''#!/bin/sh
+set -eu
+test -s photohearth-source.tar.gz
+test -s release-sha.txt
+tar -tzf photohearth-source.tar.gz >/dev/null
+sha=$(cat release-sha.txt)
+case "$sha" in ''|*[!0-9a-f]*) exit 2 ;; esac
+test "${#sha}" -eq 40
+test "$(git rev-parse HEAD)" = "$sha"
+digest=$(sha256sum photohearth-source.tar.gz | cut -d ' ' -f1)
+printf 'CI #%s, commit %s, accion %s\\n' "$VERIFIED_BUILD" "$sha" "$DEPLOY_ACTION"
+{
+    printf '%s %s %s\\n' "$DEPLOY_ACTION" "$sha" "$digest"
+    cat photohearth-source.tar.gz
+} | ssh -T -i "$DEPLOY_KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \\
+    -o UserKnownHostsFile="$WORKSPACE/deploy/jenkins/known_hosts" \\
+    -o ConnectTimeout=10 james@192.168.1.140
+'''
+                }
+            }
+        }
+    }
+}
