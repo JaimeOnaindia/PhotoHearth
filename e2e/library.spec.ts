@@ -4,10 +4,15 @@ test('private photo library works from upload to restore', async ({ page }, info
   const errors: string[] = [];
   const external: string[] = [];
   const tiles: string[] = [];
+  let releaseTiles: (() => void) | undefined;
+  const tileGate = new Promise<void>(resolve => { releaseTiles = resolve; });
   // Never download public map tiles from automated browser tests.
-  await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({
-    contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8eedf"/><path d="M0 120H256M120 0V256" stroke="#fcfaf2" stroke-width="12"/></svg>',
-  }));
+  await page.route('https://tile.openstreetmap.org/**', async route => {
+    await tileGate;
+    await route.fulfill({
+      contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8eedf"/><path d="M0 120H256M120 0V256" stroke="#fcfaf2" stroke-width="12"/></svg>',
+    });
+  });
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => {
     if (request.url().startsWith('https://tile.openstreetmap.org/')) tiles.push(request.url());
@@ -69,10 +74,21 @@ test('private photo library works from upload to restore', async ({ page }, info
   await page.getByRole('navigation').getByRole('button', { name: 'Lugares', exact: true }).click();
   await expect(page.locator('.place-card')).toHaveCount(3);
   expect(tiles).toHaveLength(0);
+  await expect(page.locator('.memory-marker')).toHaveCount(0);
+  await page.locator('.place-card').first().click();
+  await expect(page.locator('.place-photos .photo-card')).toHaveCount(4);
   await page.getByRole('button', { name: 'Activar mapa', exact: true }).click();
   await expect(page.locator('.map-consent')).toHaveCount(0);
   await expect.poll(() => tiles.length).toBeGreaterThan(0);
+  expect(tiles[0]).toMatch(/\/12\//);
   await expect(page.locator('.memory-marker')).toHaveCount(3);
+  await expect(page.locator('.memory-marker img[src]')).toHaveCount(0);
+  await expect(page.getByText('Cargando mapa base…')).toBeVisible();
+  releaseTiles?.();
+  await expect(page.locator('.memory-marker img[src]')).toHaveCount(3);
+  await expect(page.getByText('Cargando mapa base…')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Todos los lugares' }).click();
+  await expect(page.locator('.place-card')).toHaveCount(3);
   await page.screenshot({ path: `test-results/places-${info.project.name}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
   await page.locator('.place-card').first().click();

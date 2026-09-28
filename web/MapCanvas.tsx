@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { fileUrl, type Place } from './api';
 import 'leaflet/dist/leaflet.css';
@@ -11,6 +11,9 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
 }) {
   const element = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
+  const markerPhotos = useRef<HTMLImageElement[]>([]);
+  const tilesReady = useRef(false);
+  const [tileStatus, setTileStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
     if (!element.current) return;
     const instance = L.map(element.current, { zoomControl: false, scrollWheelZoom: false }).setView([30, 0], 2);
@@ -23,20 +26,48 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
   }, []);
   useEffect(() => {
     if (!map.current || !enabled) return;
+    const place = places.find(item => item.id === selected);
+    if (place) map.current.setView([place.latitude, place.longitude], 12, { animate: false });
+    else if (places.length) map.current.fitBounds(
+      L.latLngBounds(places.map(item => [item.latitude, item.longitude])),
+      { padding: [65, 65], maxZoom: 11, animate: false },
+    );
+  }, [places, selected, enabled]);
+  useEffect(() => {
+    if (!map.current || !enabled) return;
+    tilesReady.current = false;
+    setTileStatus('loading');
+    let loaded = false;
+    const showTile = () => { loaded = true; setTileStatus('ready'); };
+    const finishTiles = () => {
+      tilesReady.current = true;
+      for (const photo of markerPhotos.current) {
+        if (photo.dataset.src) {
+          photo.src = photo.dataset.src;
+          delete photo.dataset.src;
+        }
+      }
+      if (!loaded) setTileStatus('error');
+    };
     const layer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
       maxZoom: 19, referrerPolicy: 'origin',
-    }).addTo(map.current);
-    return () => { layer.remove(); };
+    }).on('tileload', showTile).on('load', finishTiles).addTo(map.current);
+    return () => { layer.off('tileload', showTile).off('load', finishTiles).remove(); tilesReady.current = false; };
   }, [enabled]);
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !enabled) return;
     const markers = L.featureGroup().addTo(map.current);
+    const photos: HTMLImageElement[] = [];
+    markerPhotos.current = photos;
     for (const place of places) {
       const content = document.createElement('div');
       content.className = 'memory-pin';
       const photo = document.createElement('img');
-      photo.src = fileUrl(place.cover); photo.alt = ''; photo.loading = 'lazy';
+      const src = fileUrl(place.cover);
+      if (tilesReady.current) photo.src = src;
+      else { photo.dataset.src = src; photos.push(photo); }
+      photo.alt = ''; photo.loading = 'lazy';
       const count = document.createElement('span');
       count.textContent = String(place.count);
       content.append(photo, count);
@@ -49,9 +80,8 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
         else onSelect(place.id);
       }).addTo(markers);
     }
-    if (places.length) map.current.fitBounds(markers.getBounds(), { padding: [65, 65], maxZoom: 11, animate: false });
-    return () => { markers.remove(); };
-  }, [places, onSelect, onPick, picking]);
+    return () => { markers.remove(); markerPhotos.current = []; };
+  }, [places, enabled, onSelect, onPick, picking]);
   useEffect(() => {
     if (!map.current || !onPick) return;
     const instance = map.current;
@@ -70,9 +100,8 @@ export function MapCanvas({ places, selected, enabled, onSelect, draft, picking,
     }).addTo(map.current);
     return () => { marker.remove(); };
   }, [draft]);
-  useEffect(() => {
-    const place = places.find(item => item.id === selected);
-    if (place && map.current) map.current.setView([place.latitude, place.longitude], 12, { animate: false });
-  }, [selected, places]);
-  return <div ref={element} className={`places-map ${picking ? 'is-picking' : ''}`} role="region" aria-label={picking ? 'Elige una ubicación en el mapa' : 'Mapa de tus recuerdos'} />;
+  return <>
+    <div ref={element} className={`places-map ${picking ? 'is-picking' : ''}`} role="region" aria-label={picking ? 'Elige una ubicación en el mapa' : 'Mapa de tus recuerdos'} />
+    {enabled && tileStatus !== 'ready' && <span className="map-tile-status" role={tileStatus === 'error' ? 'alert' : 'status'}>{tileStatus === 'error' ? 'No se pudo cargar el mapa base. Comprueba la conexión.' : 'Cargando mapa base…'}</span>}
+  </>;
 }
